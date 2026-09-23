@@ -1,0 +1,272 @@
+@import url('https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,400;0,9..40,500;0,9..40,600;0,9..40,700;1,9..40,400&family=Plus+Jakarta+Sans:ital,wght@0,300;0,400;0,500;0,600;0,700;0,800;1,400&display=swap');
+@import "tailwindcss";
+
+@theme {
+  --font-sans: 'Plus Jakarta Sans', 'DM Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  --font-display: 'Plus Jakarta Sans', 'DM Sans', sans-serif;
+}
+
+@variant dark (&:where(.dark, .dark *));
+
+@layer base {
+  :root {
+    --font-primary: 'Plus Jakarta Sans', 'DM Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  }
+
+  html {
+    font-family: var(--font-primary);
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    text-rendering: optimizeLegibility;
+  }
+
+  body {
+    font-family: var(--font-primary);
+    letter-spacing: -0.011em;
+  }
+
+  button, input, textarea, select {
+    font-family: inherit;
+  }
+
+  h1, h2, h3, h4, h5, h6 {
+    letter-spacing: -0.02em;
+  }
+
+  /* High focus visibility for keyboard navigation (WCAG AAA) */
+  *:focus-visible {
+    outline: 3px solid #2563eb !important;
+    outline-offset: 3px !important;
+    border-radius: 4px;
+  }
+}
+
+/* Modern Animations for Professional SaaS Look */
+@keyframes soundwave {
+  0%, 100% {
+    height: 6px;
+    opacity: 0.6;
+  }
+  50% {
+    height: 24px;
+    opacity: 1;
+  }
+}
+
+@keyframes soundwave-energetic {
+  0%, 100% {
+    height: 6px;
+    transform: scaleY(0.35);
+    opacity: 0.7;
+  }
+  40% {
+    height: 32px;
+    transform: scaleY(1.4);
+    opacity: 1;
+  }
+  75% {
+    height: 16px;
+    transform: scaleY(0.85);
+    opacity: 0.9;
+  }
+}
+
+@keyframes float-slow {
+  0%, 100% {
+    transform: translateY(0);
+  }
+  50% {
+    transform: translateY(-6px);
+  }
+}
+
+@keyframes float-reverse {
+  0%, 100% {
+    transform: translateY(0);
+  }
+  50% {
+    transform: translateY(6px);
+  }
+}
+
+.animate-float-slow {
+  animation: float-slow 4s ease-in-out infinite;
+}
+
+.animate-float-reverse {
+  animation: float-reverse 4.5s ease-in-out infinite 1s;
+}
+
+/* Audio Transcription Waveform Equalizer */
+@keyframes audio-wave-bar {
+  0%, 100% {
+    height: 8px;
+    opacity: 0.45;
+  }
+  50% {
+    height: 38px;
+    opacity: 1;
+  }
+}
+
+.animate-audio-bar-1 { animation: audio-wave-bar 1.1s ease-in-out infinite 0.0s; }
+.animate-audio-bar-2 { animation: audio-wave-bar 1.1s ease-in-out infinite 0.2s; }
+.animate-audio-bar-3 { animation: audio-wave-bar 1.1s ease-in-out infinite 0.4s; }
+.animate-audio-bar-4 { animation: audio-wave-bar 1.1s ease-in-out infinite 0.15s; }
+.animate-audio-bar-5 { animation: audio-wave-bar 1.1s ease-in-out infinite 0.35s; }
+.animate-audio-bar-6 { animation: audio-wave-bar 1.1s ease-in-out infinite 0.5s; }
+.animate-audio-bar-7 { animation: audio-wave-bar 1.1s ease-in-out infinite 0.25s; }
+
+/* Dyslexia Friendly Mode */
+body.mode-dyslexic {
+  font-family: 'OpenDyslexic', 'Open-Dyslexic', 'Comic Sans MS', sans-serif !important;
+}
+body.mode-dyslexic p,
+body.mode-dyslexic span,
+body.mode-dyslexic h1,
+body.mode-dyslexic h2,
+body.mode-dyslexic h3,
+body.mode-dyslexic h4,
+body.mode-dyslexic h5,
+body.mode-dyslexic h6,
+body.mode-dyslexic article,
+body.mode-dyslexic textarea,
+body.mode-dyslexic input,
+body.mode-dyslexic button {
+  font-family: 'OpenDyslexic', 'Open-Dyslexic', 'Comic Sans MS', sans-serif !important;
+  letter-spacing: 0.03em !important;
+  line-height: 1.7 !important;
+}
+
+/* High Contrast: Yellow on Black (Sangat penting untuk low vision / tunanetra parsial) */
+body.mode-yellow-black {
+  background-color: #000000 !important;
+  color: #ffff00 !important;
+}
+
+body.mode-yellow-black * {
+  background-color: transparent !important;
+  color: #ffff00 !important;
+  border-color: #ffff00 !important;
+}
+
+/* Solid background containers to prevent transparency bleed-through */
+body.mode-yellow-black dialog,
+body.mode-yellow-black [role="dialog"],
+body.mode-yellow-black [role="region"],
+body.mode-yellow-black aside,
+body.mode-yellow-black header,
+body.mode-yellow-black nav,
+body.mode-yellow-black article,
+body.mode-yellow-black .bg-white,
+body.mode-yellow-black .bg-slate-900,
+body.mode-yellow-black .bg-slate-950,
+body.mode-yellow-black .bg-slate-800,
+body.mode-yellow-black .bg-slate-100,
+body.mode-yellow-black .bg-slate-50 {
+  background-color: #000000 !important;
+}
+
+body.mode-yellow-black button,
+body.mode-yellow-black input,
+body.mode-yellow-black textarea,
+body.mode-yellow-black select {
+  background-color: #111111 !important;
+  color: #ffff00 !important;
+  border: 2px solid #ffff00 !important;
+}
+
+body.mode-yellow-black button:hover,
+body.mode-yellow-black a:hover {
+  background-color: #ffff00 !important;
+  color: #000000 !important;
+}
+
+body.mode-yellow-black button:hover *,
+body.mode-yellow-black a:hover * {
+  color: #000000 !important;
+}
+
+/* Reverse contrast highlight for reading sentences in yellow-black mode */
+body.mode-yellow-black [data-highlighted="true"],
+body.mode-yellow-black [data-highlighted="true"] * {
+  background-color: #ffff00 !important;
+  color: #000000 !important;
+  font-weight: 800 !important;
+}
+
+body.mode-yellow-black *:focus-visible {
+  outline: 3px solid #ffffff !important;
+  outline-offset: 3px !important;
+}
+
+/* High Contrast: Dark Mode Deep Contrast */
+body.mode-high-dark {
+  background-color: #050811 !important;
+  color: #f8fafc !important;
+}
+
+body.mode-high-dark .bg-white,
+body.mode-high-dark .bg-slate-50,
+body.mode-high-dark .bg-slate-100 {
+  background-color: #0f172a !important;
+  color: #f8fafc !important;
+  border-color: #334155 !important;
+}
+
+body.mode-high-dark .text-slate-600,
+body.mode-high-dark .text-slate-500,
+body.mode-high-dark .text-slate-400 {
+  color: #cbd5e1 !important;
+}
+
+/* Monochrome Mode */
+body.mode-monochrome {
+  filter: grayscale(100%) contrast(110%);
+}
+
+/* Font Size Scales: Applied to main workspace content so reading/learning materials scale up (115%, 130%) while navigation chrome (header and aside) remains standard and sleek */
+body.font-scale-lg main,
+html.font-scale-lg main {
+  --text-xs: 0.8625rem !important; /* 12px * 1.15 = 13.8px */
+  --text-sm: 1.006rem !important;  /* 14px * 1.15 = 16.1px */
+  --text-base: 1.15rem !important; /* 16px * 1.15 = 18.4px */
+  --text-lg: 1.294rem !important;  /* 18px * 1.15 = 20.7px */
+  --text-xl: 1.4375rem !important; /* 20px * 1.15 = 23.0px */
+  --text-2xl: 1.725rem !important; /* 24px * 1.15 = 27.6px */
+  --text-3xl: 2.156rem !important; /* 30px * 1.15 = 34.5px */
+}
+
+body.font-scale-xl main,
+html.font-scale-xl main {
+  --text-xs: 0.975rem !important; /* 12px * 1.30 = 15.6px */
+  --text-sm: 1.1375rem !important; /* 14px * 1.30 = 18.2px */
+  --text-base: 1.3rem !important;  /* 16px * 1.30 = 20.8px */
+  --text-lg: 1.4625rem !important; /* 18px * 1.30 = 23.4px */
+  --text-xl: 1.625rem !important;  /* 20px * 1.30 = 26.0px */
+  --text-2xl: 1.95rem !important;  /* 24px * 1.30 = 31.2px */
+  --text-3xl: 2.4375rem !important; /* 30px * 1.30 = 39.0px */
+}
+
+/* Ensure navigation chrome (TopAppBar and AppSidebar) is never inflated */
+header, aside {
+  --text-xs: 0.75rem !important;
+  --text-sm: 0.875rem !important;
+  --text-base: 1rem !important;
+}
+
+/* Reading Ruler Guide */
+.reading-guide-line {
+  position: fixed;
+  left: 0;
+  right: 0;
+  height: 28px;
+  background-color: rgba(254, 240, 138, 0.35);
+  border-top: 2px solid rgba(234, 179, 8, 0.7);
+  border-bottom: 2px solid rgba(234, 179, 8, 0.7);
+  pointer-events: none;
+  z-index: 9999;
+  transition: top 0.05s ease-out;
+}
+
+
