@@ -263,6 +263,8 @@ export const VoiceNavigator: React.FC<VoiceNavigatorProps> = ({ onNavigateTab })
       return;
     }
 
+    const isMobile = typeof navigator !== 'undefined' && /Android|iPhone|iPad|iPod|Mobile/i.test(navigator.userAgent);
+
     // Completely abort and unbind previous instance to prevent deadlocks and leaks
     if (recognitionRef.current) {
       try {
@@ -277,7 +279,9 @@ export const VoiceNavigator: React.FC<VoiceNavigatorProps> = ({ onNavigateTab })
 
     try {
       const recognition = new SpeechAPI();
-      recognition.continuous = true;
+      // On mobile (especially Android Chrome), continuous: true causes internal failure or freezes without firing onresult
+      // (Chromium bug #1157218). On mobile, continuous MUST be false with clean auto-reconnect on onend.
+      recognition.continuous = !isMobile;
       recognition.interimResults = true;
       recognition.lang = 'id-ID';
       recognition.maxAlternatives = 1;
@@ -390,7 +394,7 @@ export const VoiceNavigator: React.FC<VoiceNavigatorProps> = ({ onNavigateTab })
             if (voiceNavActiveRef.current && !permissionErrorRef.current) {
               startRecognition();
             }
-          }, 300);
+          }, isMobile ? 120 : 300);
         }
       };
 
@@ -407,20 +411,9 @@ export const VoiceNavigator: React.FC<VoiceNavigatorProps> = ({ onNavigateTab })
     }
   };
 
-  const requestMicrophoneAccess = async () => {
+  const requestMicrophoneAccess = () => {
     setPermissionError(null);
-    if (typeof navigator !== 'undefined' && navigator.mediaDevices?.getUserMedia) {
-      try {
-        const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-        stream.getTracks().forEach((track) => track.stop());
-      } catch (err: any) {
-        console.warn('getUserMedia mic request failed or denied:', err);
-        if (err.name === 'NotAllowedError' || err.name === 'PermissionDeniedError') {
-          setPermissionError('Akses mikrofon ditolak. Izinkan mikrofon di pengaturan browser HP Anda.');
-          return;
-        }
-      }
-    }
+    // Directly start speech recognition so browser natively prompts without destroying mic hardware tracks
     startRecognition();
   };
 
@@ -645,7 +638,7 @@ export const VoiceNavigator: React.FC<VoiceNavigatorProps> = ({ onNavigateTab })
               </button>
             </div>
           ) : (
-            <div className="flex items-center gap-2.5">
+            <div className="flex items-center gap-2">
               <RealtimeAudioWave
                 isActive={isListening}
                 barCount={7}
@@ -655,8 +648,8 @@ export const VoiceNavigator: React.FC<VoiceNavigatorProps> = ({ onNavigateTab })
                 gap="gap-0.5"
                 variant="cyan"
               />
-              <span className="hidden sm:inline text-[11px] text-slate-400 font-medium transition-opacity duration-300 truncate max-w-[170px]">
-                {ROTATING_HINTS[hintIndex]}
+              <span className="text-[11px] text-slate-300 font-medium transition-opacity duration-300 truncate max-w-[130px] sm:max-w-[170px]">
+                {isListening ? (typeof navigator !== 'undefined' && /Android|iPhone|iPad|iPod|Mobile/i.test(navigator.userAgent) ? 'Mendengarkan...' : ROTATING_HINTS[hintIndex]) : 'Menghubungkan...'}
               </span>
             </div>
           )}

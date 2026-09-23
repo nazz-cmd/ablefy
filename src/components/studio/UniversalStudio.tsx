@@ -754,8 +754,8 @@ export const UniversalStudio: React.FC = () => {
           }`}
           aria-label="Panel Sumber Bacaan dan Pengaturan"
         >
-          {/* DESKTOP UNIFIED SHELL: Sticky, dynamic height, seamless animation */}
-          <div className="hidden lg:flex flex-col bg-white dark:bg-slate-900 rounded-2xl border border-slate-200/90 dark:border-slate-800 shadow-xs sticky top-20 h-fit max-h-[calc(100vh-6.5rem)] overflow-hidden">
+          {/* UNIFIED CONTROL SHELL: Responsive on mobile & desktop, dynamic height */}
+          <div className="flex flex-col bg-white dark:bg-slate-900 rounded-2xl border border-slate-200/90 dark:border-slate-800 shadow-xs lg:sticky lg:top-20 h-fit max-h-none lg:max-h-[calc(100vh-6.5rem)] overflow-hidden">
             
             {/* Header: Toggle button is right on the box */}
             <div className={`shrink-0 border-b border-slate-100 dark:border-slate-800/80 transition-all ${
@@ -805,8 +805,8 @@ export const UniversalStudio: React.FC = () => {
             {/* Body */}
             <div className="flex-1 overflow-y-auto overflow-x-hidden [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden">
               {isRightPanelOpen ? (
-                /* EXPANDED CONTENT: fixed width wrapper to prevent text re-wrapping */
-                <div className="w-[330px] xl:w-[350px] p-4 space-y-3.5 animate-in fade-in duration-200">
+                /* EXPANDED CONTENT: fixed width on desktop, full-width fluid on mobile */
+                <div className="w-full lg:w-[330px] xl:w-[350px] p-4 space-y-3.5 animate-in fade-in duration-200">
                   {/* Segmented Tab Switcher (3 Tabs) */}
                   <div className="flex items-center bg-slate-100 dark:bg-slate-800/80 p-1 rounded-xl gap-1">
                     <button
@@ -1233,8 +1233,8 @@ export const UniversalStudio: React.FC = () => {
                   )}
                 </div>
               ) : (
-                /* COLLAPSED RAIL: Centered action buttons with tooltips */
-                <div className="py-3 px-1.5 flex flex-col items-center gap-2.5 animate-in fade-in duration-200">
+                /* COLLAPSED RAIL: Centered action buttons with tooltips (horizontal row on mobile, vertical column on desktop) */
+                <div className="py-3 px-3 flex flex-row lg:flex-col items-center justify-around lg:justify-start gap-2.5 animate-in fade-in duration-200">
                   <button
                     onClick={() => {
                       setIsRightPanelOpen(true);
@@ -1281,52 +1281,6 @@ export const UniversalStudio: React.FC = () => {
               )}
             </div>
 
-          </div>
-
-          {/* MOBILE VIEW: Clean Action Card (Always Visible, No Toggle) */}
-          <div className="lg:hidden w-full bg-white dark:bg-slate-900 rounded-2xl border border-slate-200/90 dark:border-slate-800 p-4 shadow-xs space-y-3">
-            <div className="space-y-0.5">
-              <span className="text-xs font-bold text-slate-800 dark:text-white flex items-center gap-2">
-                <FileText className="w-4 h-4 text-blue-600" />
-                <span>Sumber Bahan Bacaan & Suara</span>
-              </span>
-              <p className="text-[11px] text-slate-500 dark:text-slate-400">
-                Pilih metode memuat dokumen untuk dibacakan secara alami:
-              </p>
-            </div>
-
-            <div className="space-y-2.5 pt-1">
-              <button
-                type="button"
-                onClick={handleReadClipboard}
-                className="w-full py-2.5 px-3 rounded-xl bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold flex items-center justify-center gap-2 shadow-xs transition active:scale-98"
-              >
-                <Clipboard className="w-4 h-4" />
-                <span>Baca dari Salinan / Clipboard (WhatsApp/Email)</span>
-              </button>
-
-              <div className="grid grid-cols-2 gap-2">
-                <button
-                  type="button"
-                  onClick={() => setActiveInputTab('custom')}
-                  className="py-2.5 px-3 rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50/60 dark:bg-slate-950 hover:bg-slate-100 text-xs font-semibold flex items-center justify-center gap-1.5 transition"
-                >
-                  <PenLine className="w-3.5 h-3.5 text-blue-600 shrink-0" />
-                  <span className="truncate">Ketik / Tempel</span>
-                </button>
-                <label className="py-2.5 px-3 rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50/60 dark:bg-slate-950 hover:bg-slate-100 text-xs font-semibold flex items-center justify-center gap-1.5 cursor-pointer transition">
-                  <Upload className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
-                  <span className="truncate">Unggah Berkas</span>
-                  <input type="file" accept=".txt,.pdf,.md" onChange={handleFileUpload} className="hidden" />
-                </label>
-              </div>
-
-              {/* Quick Persona & Speed Indicator on Mobile */}
-              <div className="pt-2 border-t border-slate-100 dark:border-slate-800 flex items-center justify-between text-[11px] text-slate-500 dark:text-slate-400">
-                <span>Karakter Suara: <strong className="text-slate-700 dark:text-slate-200">{voicePersona === 'educator' ? '🎓 Ardi (Edukator)' : '🌸 Gadis (Ramah)'}</strong></span>
-                <span className="bg-slate-100 dark:bg-slate-800 px-2 py-0.5 rounded-md font-bold text-slate-700 dark:text-slate-300">{speechRate}x</span>
-              </div>
-            </div>
           </div>
         </aside>
 

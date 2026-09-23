@@ -714,26 +714,15 @@ export const LectureCompanion: React.FC = () => {
       return;
     }
 
-    if (typeof navigator !== 'undefined' && navigator.mediaDevices?.getUserMedia) {
-      try {
-        const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-        stream.getTracks().forEach((t) => t.stop());
-      } catch (err: any) {
-        console.warn('getUserMedia mic error in lecture:', err);
-        if (err.name === 'NotAllowedError' || err.name === 'PermissionDeniedError') {
-          speakCue('Akses mikrofon ditolak. Izinkan mikrofon di pengaturan browser Anda.');
-          setIsListening(false);
-          isListeningRef.current = false;
-          return;
-        }
-      }
-    }
+    const isMobile = typeof navigator !== 'undefined' && /Android|iPhone|iPad|iPod|Mobile/i.test(navigator.userAgent);
 
     stopStandaloneRecognition();
 
     try {
       const recognition = new SpeechAPI();
-      recognition.continuous = true;
+      // Android Chrome freezes/fails on continuous: true (Chromium bug #1157218).
+      // On mobile, continuous MUST be false with clean auto-reconnect on onend.
+      recognition.continuous = !isMobile;
       recognition.interimResults = true;
       recognition.lang = 'id-ID';
 
@@ -780,11 +769,12 @@ export const LectureCompanion: React.FC = () => {
       };
 
       recognition.onerror = (e: any) => {
-        if (e.error === 'not-allowed') {
+        if (e.error === 'not-allowed' || e.error === 'service-not-allowed') {
           speakCue('Akses mikrofon diblokir. Izinkan mikrofon di pengaturan browser Anda.');
           setIsListening(false);
           isListeningRef.current = false;
         }
+        // Non-fatal errors ('no-speech', 'audio-capture', 'network', 'aborted') are handled cleanly by onend
       };
 
       recognition.onend = () => {
@@ -796,14 +786,14 @@ export const LectureCompanion: React.FC = () => {
           setInterimSpeech('');
         }
 
-        // Automatically restart if user hasn't stopped recording
+        // Automatically restart seamlessly if user hasn't stopped recording
         if (isListeningRef.current && !voiceNavActiveRef.current && typeof document !== 'undefined' && document.visibilityState !== 'hidden') {
           clearTimeout(restartTimerRef.current);
           restartTimerRef.current = setTimeout(() => {
             if (isListeningRef.current && !voiceNavActiveRef.current) {
               startStandaloneRecognition();
             }
-          }, 250);
+          }, isMobile ? 120 : 250);
         }
       };
 
@@ -1313,7 +1303,7 @@ export const LectureCompanion: React.FC = () => {
               </div>
 
               {bubbles.length === 0 && !isListening ? (
-                /* Clean Empty State with Sample Demo trigger */
+                /* Clean Empty State with Direct Record trigger & Sample Demo trigger */
                 <div className="p-8 sm:p-10 text-center flex flex-col items-center justify-center space-y-3">
                   <div className="w-14 h-14 rounded-2xl bg-blue-50 dark:bg-blue-950/40 border border-blue-200/60 dark:border-blue-800/60 flex items-center justify-center text-blue-600 dark:text-blue-400 shadow-xs">
                     <Mic className="w-7 h-7" />
@@ -1323,17 +1313,25 @@ export const LectureCompanion: React.FC = () => {
                       Mikrofon Siap Digunakan
                     </h3>
                     <p className="text-xs sm:text-sm text-slate-500 dark:text-slate-400 leading-relaxed">
-                      Klik tombol <strong>Mulai Rekam</strong> di panel kanan untuk mentranskripsikan pembicaraan atau percakapan secara langsung.
+                      Tekan tombol <strong>Mulai Rekam Suara</strong> untuk mentranskripsikan pembicaraan atau percakapan secara langsung.
                     </p>
                   </div>
-                  <div className="pt-2">
+                  <div className="pt-2 flex flex-wrap items-center justify-center gap-2.5">
+                    <button
+                      type="button"
+                      onClick={toggleRecording}
+                      className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold transition shadow-xs active:scale-95"
+                    >
+                      <Mic className="w-4 h-4" />
+                      <span>Mulai Rekam Suara</span>
+                    </button>
                     <button
                       type="button"
                       onClick={handleLoadSampleMicBubbles}
-                      className="inline-flex items-center gap-2 px-3.5 py-2 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800/80 hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-300 text-xs font-semibold transition shadow-2xs"
+                      className="inline-flex items-center gap-2 px-3.5 py-2.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800/80 hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-300 text-xs font-semibold transition shadow-2xs active:scale-95"
                     >
                       <Sparkles className="w-3.5 h-3.5 text-blue-500" />
-                      <span>Coba dengan Contoh Percakapan</span>
+                      <span>Coba Contoh Percakapan</span>
                     </button>
                   </div>
                 </div>
@@ -1914,8 +1912,8 @@ export const LectureCompanion: React.FC = () => {
           }`}
           aria-label="Panel Sumber Suara dan Aksi"
         >
-          {/* DESKTOP UNIFIED SHELL: Sticky, dynamic height, seamless animation */}
-          <div className="hidden lg:flex flex-col bg-white dark:bg-slate-900 rounded-2xl border border-slate-200/90 dark:border-slate-800 shadow-xs sticky top-20 h-fit max-h-[calc(100vh-6.5rem)] overflow-hidden">
+          {/* UNIFIED CONTROL SHELL: Responsive on mobile & desktop, dynamic height */}
+          <div className="flex flex-col bg-white dark:bg-slate-900 rounded-2xl border border-slate-200/90 dark:border-slate-800 shadow-xs lg:sticky lg:top-20 h-fit max-h-none lg:max-h-[calc(100vh-6.5rem)] overflow-hidden">
             
             {/* Header: Toggle button is right on the box */}
             <div className={`shrink-0 border-b border-slate-100 dark:border-slate-800/80 transition-all ${
@@ -1953,8 +1951,8 @@ export const LectureCompanion: React.FC = () => {
             {/* Body */}
             <div className="flex-1 overflow-y-auto overflow-x-hidden [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden">
               {isRightPanelOpen ? (
-                /* EXPANDED CONTENT: fixed width wrapper to prevent text re-wrapping */
-                <div className="w-[330px] xl:w-[350px] p-4 space-y-4 animate-in fade-in duration-200">
+                /* EXPANDED CONTENT: fixed width on desktop, full-width fluid on mobile */
+                <div className="w-full lg:w-[330px] xl:w-[350px] p-4 space-y-4 animate-in fade-in duration-200">
                   {/* Section 1: Sumber Suara & Kontrol Input */}
                   <div className="space-y-3">
                     <span className="text-xs font-bold text-slate-800 dark:text-white block">
@@ -2192,8 +2190,8 @@ export const LectureCompanion: React.FC = () => {
 
                 </div>
               ) : (
-                /* COLLAPSED RAIL: Centered action buttons with tooltips */
-                <div className="py-3 px-1.5 flex flex-col items-center gap-2.5 animate-in fade-in duration-200">
+                /* COLLAPSED RAIL: Centered action buttons with tooltips (horizontal row on mobile, vertical column on desktop) */
+                <div className="py-3 px-3 flex flex-row lg:flex-col items-center justify-around lg:justify-start gap-2.5 animate-in fade-in duration-200">
                   <button
                     onClick={() => {
                       handleSwitchSourceMode('mic');
@@ -2247,103 +2245,6 @@ export const LectureCompanion: React.FC = () => {
               )}
             </div>
 
-          </div>
-
-          {/* MOBILE VIEW: Clean Action Card (Always Visible, No Toggle) */}
-          <div className="lg:hidden w-full bg-white dark:bg-slate-900 rounded-2xl border border-slate-200/90 dark:border-slate-800 p-4 shadow-xs space-y-3">
-            <div className="space-y-0.5">
-              <span className="text-xs font-bold text-slate-800 dark:text-white flex items-center gap-2">
-                <Radio className="w-4 h-4 text-blue-600" />
-                <span>Sumber Suara Transkripsi</span>
-              </span>
-              <p className="text-[11px] text-slate-500 dark:text-slate-400">
-                Pilih metode input audio yang ingin diubah menjadi teks:
-              </p>
-            </div>
-
-            {/* 3 Source Options with concise subtitles */}
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 pt-1">
-              <button
-                type="button"
-                onClick={() => handleSwitchSourceMode('mic')}
-                className={`p-2.5 rounded-xl border text-left transition flex items-center gap-2.5 ${
-                  sourceMode === 'mic'
-                    ? 'border-blue-600 bg-blue-50 dark:bg-blue-950/50 text-blue-900 dark:text-blue-100 font-bold shadow-2xs'
-                    : 'border-slate-200 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-300'
-                }`}
-              >
-                <Mic className="w-4 h-4 text-blue-600 shrink-0" />
-                <div className="min-w-0">
-                  <div className="text-xs font-bold">Mikrofon Langsung</div>
-                  <div className="text-[10px] text-slate-500 dark:text-slate-400">Rekam suara seketika</div>
-                </div>
-              </button>
-
-              <button
-                type="button"
-                onClick={() => handleSwitchSourceMode('audio')}
-                className={`p-2.5 rounded-xl border text-left transition flex items-center gap-2.5 ${
-                  sourceMode === 'audio'
-                    ? 'border-blue-600 bg-blue-50 dark:bg-blue-950/50 text-blue-900 dark:text-blue-100 font-bold shadow-2xs'
-                    : 'border-slate-200 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-300'
-                }`}
-              >
-                <Radio className="w-4 h-4 text-indigo-600 shrink-0" />
-                <div className="min-w-0">
-                  <div className="text-xs font-bold">Unggah Audio</div>
-                  <div className="text-[10px] text-slate-500 dark:text-slate-400">Berkas .mp3 / .wav / .m4a</div>
-                </div>
-              </button>
-
-              <button
-                type="button"
-                onClick={() => handleSwitchSourceMode('video')}
-                className={`p-2.5 rounded-xl border text-left transition flex items-center gap-2.5 ${
-                  sourceMode === 'video'
-                    ? 'border-blue-600 bg-blue-50 dark:bg-blue-950/50 text-blue-900 dark:text-blue-100 font-bold shadow-2xs'
-                    : 'border-slate-200 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-300'
-                }`}
-              >
-                <Sparkles className="w-4 h-4 text-purple-600 shrink-0" />
-                <div className="min-w-0">
-                  <div className="text-xs font-bold">Ekstrak Video</div>
-                  <div className="text-[10px] text-slate-500 dark:text-slate-400">Video materi / presentasi</div>
-                </div>
-              </button>
-            </div>
-
-            {/* Quick Export Actions */}
-            <div className="pt-2 border-t border-slate-100 dark:border-slate-800 flex items-center justify-between gap-2">
-              <span className="text-[11px] font-semibold text-slate-500 dark:text-slate-400">
-                Aksi Naskah:
-              </span>
-              <div className="flex items-center gap-2">
-                <button
-                  type="button"
-                  onClick={() => {
-                    if (sourceMode === 'audio') handleCopyAudioTranscript();
-                    else if (sourceMode === 'video') handleCopyVideoTranscript();
-                    else handleCopyAll(bubbles);
-                  }}
-                  className="px-3 py-1.5 rounded-lg border border-slate-200 dark:border-slate-700 text-xs font-semibold text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800 transition flex items-center gap-1.5"
-                >
-                  <Copy className="w-3.5 h-3.5 text-blue-600" />
-                  <span>Salin Teks</span>
-                </button>
-                <button
-                  type="button"
-                  onClick={() => {
-                    if (sourceMode === 'audio') handleExportAudioTxt();
-                    else if (sourceMode === 'video') handleExportVideoTranscript();
-                    else handleExportTxt(bubbles);
-                  }}
-                  className="px-3 py-1.5 rounded-lg bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold transition flex items-center gap-1.5 shadow-2xs"
-                >
-                  <Download className="w-3.5 h-3.5" />
-                  <span>Unduh TXT</span>
-                </button>
-              </div>
-            </div>
           </div>
         </aside>
 
