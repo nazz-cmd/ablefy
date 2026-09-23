@@ -25,3 +25,8 @@ dist-ssr
 *.njsproj
 *.sln
 *.sw?
+
+# Competition proposal documents (do not push to public GitHub)
+PROPOSAL*
+*.doc
+*.docx
