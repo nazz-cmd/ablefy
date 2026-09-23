@@ -87,17 +87,17 @@ export const TopAppBar: React.FC<TopAppBarProps> = ({
 
       {/* Right: Primary Action & Standard Font Scaler */}
       <div className="flex items-center gap-1.5 sm:gap-3 shrink-0">
-        {/* Quick Action Button on Home: 🎙️ Transkripsi Live */}
-        {activeTab === 'home' && (
+        {/* Quick Action Button: 🎙️ Transkripsi Live (Always available when not already on lecture tab) */}
+        {activeTab !== 'lecture' && (
           <button
             onClick={handleStartTranscription}
-            className="flex items-center gap-1 sm:gap-2 px-2 sm:px-3 py-1.5 sm:py-2 rounded-full bg-blue-600 hover:bg-blue-700 active:scale-95 text-white text-[10px] sm:text-xs font-bold shadow-xs transition-all shrink-0"
+            className="flex items-center gap-1 sm:gap-2 px-2.5 sm:px-3 py-1.5 sm:py-2 rounded-full bg-blue-600 hover:bg-blue-700 active:scale-95 text-white text-[10px] sm:text-xs font-bold shadow-xs transition-all shrink-0"
             title="Mulai Transkripsi Suara Langsung (Hotkey 1)"
           >
             <span className="w-1.5 h-1.5 sm:w-2 sm:h-2 rounded-full bg-rose-400 animate-pulse shrink-0" />
             <Mic className="w-3.5 h-3.5 shrink-0" />
             <span className="hidden sm:inline">Transkripsi Live</span>
-            <span className="sm:hidden">Transkrip</span>
+            <span className="sm:hidden font-bold">Transkrip</span>
           </button>
         )}
 

@@ -30,3 +30,12 @@ dist-ssr
 PROPOSAL*
 *.doc
 *.docx
+*.pdf
+proposal_assets/
+*.cjs
+*.ps1
+test_*
+rendered_pages/
+capture_hd_assets.py
+render_pdf_pages.py
+

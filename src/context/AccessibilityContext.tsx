@@ -153,6 +153,29 @@ export const AccessibilityProvider: React.FC<{ children: ReactNode }> = ({ child
     }
   }, []);
 
+  // Mobile Audio Context & Web Speech Unlocker for iOS Safari and Android Chrome
+  useEffect(() => {
+    const unlockAudio = () => {
+      if (typeof window !== 'undefined' && 'speechSynthesis' in window) {
+        try {
+          if (window.speechSynthesis.paused) {
+            window.speechSynthesis.resume();
+          }
+          const silentUtterance = new SpeechSynthesisUtterance('');
+          silentUtterance.volume = 0;
+          window.speechSynthesis.speak(silentUtterance);
+        } catch (_) {}
+      }
+    };
+
+    window.addEventListener('touchstart', unlockAudio, { once: true, passive: true });
+    window.addEventListener('click', unlockAudio, { once: true, passive: true });
+    return () => {
+      window.removeEventListener('touchstart', unlockAudio);
+      window.removeEventListener('click', unlockAudio);
+    };
+  }, []);
+
   const [rulerY, setRulerY] = useState<number>(200);
   const [isSpeaking, setIsSpeaking] = useState<boolean>(false);
 
@@ -312,10 +335,33 @@ export const AccessibilityProvider: React.FC<{ children: ReactNode }> = ({ child
     setIsSpeaking(false);
   };
 
-  // Safe voice cue helper: ONLY speaks when voiceCues is enabled
-  const speakCue = (text: string, personaOverride?: VoicePersona) => {
+  // Zero-latency local Web Speech synthesis for instant UI navigation cues (0-10ms delay, no network lag)
+  const speakInstantCue = (text: string) => {
+    if (typeof window === 'undefined' || !('speechSynthesis' in window)) return;
+    try {
+      if (window.speechSynthesis.paused) {
+        window.speechSynthesis.resume();
+      }
+      window.speechSynthesis.cancel();
+      const utterance = new SpeechSynthesisUtterance(text);
+      utterance.lang = 'id-ID';
+      utterance.rate = 1.15; // slightly faster for snappy responsive UI feedback
+
+      const voices = window.speechSynthesis.getVoices();
+      const idVoice = voices.find((v) => v.lang.startsWith('id') || v.lang.includes('ID'));
+      if (idVoice) {
+        utterance.voice = idVoice;
+      }
+      window.speechSynthesis.speak(utterance);
+    } catch (err) {
+      console.warn('speakInstantCue error:', err);
+    }
+  };
+
+  // Safe voice cue helper: Instant zero-latency speech for UI navigation cues (0ms delay)
+  const speakCue = (text: string, _personaOverride?: VoicePersona) => {
     if (!voiceCuesRef.current) return;
-    speakText(text, personaOverride);
+    speakInstantCue(text);
   };
 
   const applyPersona = (persona: UserPersona) => {

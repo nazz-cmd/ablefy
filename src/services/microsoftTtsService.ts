@@ -234,6 +234,12 @@ export const speakWithBrowserAzureFallback = (
 
   stopAllAudio();
 
+  try {
+    if (window.speechSynthesis.paused) {
+      window.speechSynthesis.resume();
+    }
+  } catch (_) {}
+
   const utterance = new SpeechSynthesisUtterance(text);
   utterance.lang = 'id-ID';
   utterance.rate = options?.rate || 1.0;

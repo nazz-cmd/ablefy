@@ -91,6 +91,7 @@ export const normalizeIndonesianText = (raw: string): string => {
     [/\b(bisindo|bahasa isyarat|isyarat tangan)\b/g, 'isyarat'],
     [/\b(home|dashboard|halaman utama|menu awal)\b/g, 'beranda'],
     [/\b(kuliah|perkuliahan|stt|speech to text)\b/g, 'transkrip'],
+    [/\b(bicara live|bicara langsung|ngomong langsung|ngomong|wicara langsung)\b/g, 'bicara'],
     [/\b(reader|materi bacaan|dokumen bacaan)\b/g, 'pembaca']
   ];
 
@@ -171,10 +172,10 @@ export const classifyIndonesianVoiceIntent = (
     };
   }
 
-  // Start Recording: "mulai transkrip", "rekam suara", "aktifkan mikrofon", "mulai rekam", "klik mulai transkrip"
+  // Start Recording: "mulai transkrip", "rekam suara", "bicara live", "mau bicara", "aktifkan mikrofon", "mulai rekam"
   if (
     (clean.includes('mulai') || clean.includes('start') || clean.includes('aktifkan') || clean.includes('ambil') || clean.includes('klik') || clean.includes('tekan') || clean.includes('pencet') || clean.includes('bikin') || clean.includes('nyalakan')) &&
-    (clean.includes('transkrip') || clean.includes('rekam') || clean.includes('suara') || clean.includes('mikrofon') || clean.includes('mic') || clean.includes('wicara'))
+    (clean.includes('transkrip') || clean.includes('rekam') || clean.includes('suara') || clean.includes('mikrofon') || clean.includes('mic') || clean.includes('wicara') || clean.includes('bicara'))
   ) {
     return {
       action: 'START_RECORDING',
@@ -186,17 +187,24 @@ export const classifyIndonesianVoiceIntent = (
   if (
     clean === 'rekam' ||
     clean === 'rekam suara' ||
+    clean === 'bicara' ||
+    clean === 'bicara live' ||
+    clean === 'bicara langsung' ||
+    clean === 'ngomong' ||
     clean === 'mulai merekam' ||
     clean === 'mulai transkrip' ||
+    clean === 'mulai bicara' ||
     clean === 'catat suara' ||
     clean === 'catat kuliah' ||
-    clean === 'transkripsikan'
+    clean === 'transkripsikan' ||
+    clean === 'transkrip' ||
+    clean === 'transkripsi'
   ) {
     return {
       action: 'START_RECORDING',
       targetTab: 'lecture',
       label: 'Memulai transkripsi wicara langsung',
-      confidence: 0.92
+      confidence: 0.94
     };
   }
 
@@ -486,11 +494,13 @@ export const classifyIndonesianVoiceIntent = (
   // -------------------------------------------------------------
 
   // Lecture / Transcribe tab navigation:
-  // e.g. "masuk ke menu transkrip", "ke transkripsi", "buka ruang kuliah", "arahin ke transkrip"
+  // e.g. "masuk ke menu transkrip", "ke transkripsi", "buka ruang kuliah", "arahin ke transkrip", "buka bicara live"
   if (
     clean.includes('transkrip') ||
     clean.includes('transkripsi') ||
     clean.includes('wicara') ||
+    clean.includes('bicara') ||
+    clean.includes('ngomong') ||
     clean.includes('kuliah') ||
     clean === 'satu' ||
     clean === 'nomor satu'

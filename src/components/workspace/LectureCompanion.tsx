@@ -707,11 +707,26 @@ export const LectureCompanion: React.FC = () => {
     }
   };
 
-  const startStandaloneRecognition = () => {
+  const startStandaloneRecognition = async () => {
     const SpeechAPI = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
     if (!SpeechAPI) {
       simulateLiveTranscription();
       return;
+    }
+
+    if (typeof navigator !== 'undefined' && navigator.mediaDevices?.getUserMedia) {
+      try {
+        const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+        stream.getTracks().forEach((t) => t.stop());
+      } catch (err: any) {
+        console.warn('getUserMedia mic error in lecture:', err);
+        if (err.name === 'NotAllowedError' || err.name === 'PermissionDeniedError') {
+          speakCue('Akses mikrofon ditolak. Izinkan mikrofon di pengaturan browser Anda.');
+          setIsListening(false);
+          isListeningRef.current = false;
+          return;
+        }
+      }
     }
 
     stopStandaloneRecognition();
@@ -766,6 +781,7 @@ export const LectureCompanion: React.FC = () => {
 
       recognition.onerror = (e: any) => {
         if (e.error === 'not-allowed') {
+          speakCue('Akses mikrofon diblokir. Izinkan mikrofon di pengaturan browser Anda.');
           setIsListening(false);
           isListeningRef.current = false;
         }
@@ -781,13 +797,13 @@ export const LectureCompanion: React.FC = () => {
         }
 
         // Automatically restart if user hasn't stopped recording
-        if (isListeningRef.current && !voiceNavActiveRef.current) {
+        if (isListeningRef.current && !voiceNavActiveRef.current && typeof document !== 'undefined' && document.visibilityState !== 'hidden') {
           clearTimeout(restartTimerRef.current);
           restartTimerRef.current = setTimeout(() => {
             if (isListeningRef.current && !voiceNavActiveRef.current) {
               startStandaloneRecognition();
             }
-          }, 200);
+          }, 250);
         }
       };
 

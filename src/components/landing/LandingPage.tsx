@@ -436,8 +436,18 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onLaunchApp }) => {
           {/* Area Tengah Kosong (Spacious Center Space ala Otter.ai) */}
           <div className="flex-1" />
 
-          {/* Sisi Kanan: HANYA Tombol Buka Workspace Saja */}
-          <div className="flex items-center shrink-0">
+          {/* Sisi Kanan: Tombol Transkripsi Cepat + Buka Workspace */}
+          <div className="flex items-center gap-1.5 sm:gap-2 shrink-0">
+            <button
+              onClick={() => onLaunchApp('lecture')}
+              className="flex items-center gap-1 sm:gap-1.5 px-2.5 sm:px-3.5 py-2 rounded-full bg-rose-50 text-rose-700 border border-rose-200 hover:bg-rose-100 text-xs sm:text-sm font-bold shadow-2xs hover:shadow-xs transition-all active:scale-95 shrink-0"
+              title="Buka Transkripsi Wicara Live Langsung"
+            >
+              <span className="w-2 h-2 rounded-full bg-rose-500 animate-pulse" />
+              <Mic className="w-3.5 h-3.5" />
+              <span>Transkrip</span>
+            </button>
+
             <button
               onClick={() => onLaunchApp('home')}
               className="px-3 sm:px-4.5 py-2 rounded-full bg-blue-600 hover:bg-blue-700 text-white text-xs sm:text-sm font-bold shadow-sm hover:shadow-md transition-all flex items-center gap-1.5 active:scale-95 shrink-0"

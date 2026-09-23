@@ -11,6 +11,7 @@ import { SignHub } from './components/bisindo/SignHub';
 import { MotorShortcutsModal } from './components/accessibility/MotorShortcutsModal';
 import { VoiceNavigator } from './components/accessibility/VoiceNavigator';
 import { LandingPage } from './components/landing/LandingPage';
+import { MobileBottomBar } from './components/layout/MobileBottomBar';
 
 export const AppContent: React.FC = () => {
   // 'landing' for the Speechify/Otter public front door; 'app' for the internal assistive workspace
@@ -203,7 +204,7 @@ export const AppContent: React.FC = () => {
         <LandingPage onLaunchApp={handleLaunchApp} />
       ) : (
         /* VIEW 2: Assistive Workspace Canvas */
-        <div className="pb-6 lg:pb-0 min-h-screen w-full max-w-full overflow-x-hidden">
+        <div className="pb-20 lg:pb-0 min-h-screen w-full max-w-full overflow-x-hidden">
           {/* Permanent Desktop Navigation Rail & Mobile Slide-In Off-Canvas Drawer */}
           <AppSidebar
             activeTab={activeTab}
@@ -236,6 +237,9 @@ export const AppContent: React.FC = () => {
               {activeTab === 'bisindo' && <SignHub />}
             </main>
           </div>
+
+          {/* Mobile Bottom Navigation Bar (Visible on mobile screens) */}
+          <MobileBottomBar activeTab={activeTab} setActiveTab={setActiveTab} />
         </div>
       )}
 

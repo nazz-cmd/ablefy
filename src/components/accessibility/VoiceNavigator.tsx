@@ -25,6 +25,7 @@ export const VoiceNavigator: React.FC<VoiceNavigatorProps> = ({ onNavigateTab })
     setVoiceCues,
     setIsShortcutsModalOpen,
     speakText,
+    speakCue,
     isSpeaking
   } = useAccessibility();
 
@@ -35,6 +36,9 @@ export const VoiceNavigator: React.FC<VoiceNavigatorProps> = ({ onNavigateTab })
   const [isLiveTranscribing, setIsLiveTranscribing] = useState<boolean>(false);
   const [hintIndex, setHintIndex] = useState<number>(0);
   const [showHelp, setShowHelp] = useState<boolean>(false);
+  const [customCommandInput, setCustomCommandInput] = useState<string>('');
+
+  const isSpeechSupported = typeof window !== 'undefined' && Boolean((window as any).SpeechRecognition || (window as any).webkitSpeechRecognition);
 
   const ROTATING_HINTS = [
     'Katakan: "Buka beranda"',
@@ -60,13 +64,16 @@ export const VoiceNavigator: React.FC<VoiceNavigatorProps> = ({ onNavigateTab })
   permissionErrorRef.current = permissionError;
   isLiveTranscribingRef.current = isLiveTranscribing;
 
-  // Listen to live lecture recording status to prevent dual visual clutter
+  // Listen to live lecture recording status to prevent dual visual clutter and keep mic listening
   useEffect(() => {
     const handleRecordingStatus = (e: Event) => {
       const customEvent = e as CustomEvent<{ isRecording: boolean }>;
       const recording = !!customEvent.detail?.isRecording;
       setIsLiveTranscribing(recording);
       isLiveTranscribingRef.current = recording;
+      if (recording && voiceNavActiveRef.current && !recognitionRef.current) {
+        startRecognition();
+      }
     };
 
     window.addEventListener('ablefy-recording-status', handleRecordingStatus);
@@ -251,7 +258,8 @@ export const VoiceNavigator: React.FC<VoiceNavigatorProps> = ({ onNavigateTab })
 
     const SpeechAPI = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
     if (!SpeechAPI) {
-      setPermissionError('Peramban ini belum mendukung Web Speech Recognition. Gunakan Google Chrome atau Microsoft Edge.');
+      // Browser like Firefox without Web Speech Recognition enabled
+      setIsListening(false);
       return;
     }
 
@@ -344,7 +352,7 @@ export const VoiceNavigator: React.FC<VoiceNavigatorProps> = ({ onNavigateTab })
         }
 
         const now = Date.now();
-        if (now - lastCommandTimeRef.current < 1000) return;
+        if (now - lastCommandTimeRef.current < 800) return;
 
         const isCommand = processCommand(activeText);
         if (isCommand) {
@@ -376,13 +384,13 @@ export const VoiceNavigator: React.FC<VoiceNavigatorProps> = ({ onNavigateTab })
           }));
         }
 
-        if (voiceNavActiveRef.current && !permissionErrorRef.current) {
+        if (voiceNavActiveRef.current && !permissionErrorRef.current && typeof document !== 'undefined' && document.visibilityState !== 'hidden') {
           clearTimeout(restartTimeoutRef.current);
           restartTimeoutRef.current = setTimeout(() => {
             if (voiceNavActiveRef.current && !permissionErrorRef.current) {
               startRecognition();
             }
-          }, 250);
+          }, 300);
         }
       };
 
@@ -392,18 +400,40 @@ export const VoiceNavigator: React.FC<VoiceNavigatorProps> = ({ onNavigateTab })
       console.warn('Start recognition instance error, will retry in 1s:', err);
       clearTimeout(restartTimeoutRef.current);
       restartTimeoutRef.current = setTimeout(() => {
-        if (voiceNavActiveRef.current && !permissionErrorRef.current) {
+        if (voiceNavActiveRef.current && !permissionErrorRef.current && typeof document !== 'undefined' && document.visibilityState !== 'hidden') {
           startRecognition();
         }
       }, 1000);
     }
   };
 
-  const requestMicrophoneAccess = () => {
-    // Start SpeechRecognition directly; Chrome will prompt if not yet granted
+  const requestMicrophoneAccess = async () => {
     setPermissionError(null);
+    if (typeof navigator !== 'undefined' && navigator.mediaDevices?.getUserMedia) {
+      try {
+        const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+        stream.getTracks().forEach((track) => track.stop());
+      } catch (err: any) {
+        console.warn('getUserMedia mic request failed or denied:', err);
+        if (err.name === 'NotAllowedError' || err.name === 'PermissionDeniedError') {
+          setPermissionError('Akses mikrofon ditolak. Izinkan mikrofon di pengaturan browser HP Anda.');
+          return;
+        }
+      }
+    }
     startRecognition();
   };
+
+  // Re-engage voice recognition automatically when mobile app returns to foreground
+  useEffect(() => {
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === 'visible' && voiceNavActiveRef.current && !permissionErrorRef.current) {
+        startRecognition();
+      }
+    };
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+    return () => document.removeEventListener('visibilitychange', handleVisibilityChange);
+  }, []);
 
   useEffect(() => {
     if (voiceNavActive) {
@@ -433,21 +463,45 @@ export const VoiceNavigator: React.FC<VoiceNavigatorProps> = ({ onNavigateTab })
     };
   }, [voiceNavActive]);
 
-  if (!voiceNavActive) return null;
+  if (!voiceNavActive) {
+    return (
+      <div className="fixed bottom-20 lg:bottom-6 right-3 sm:right-6 z-40 select-none animate-in fade-in">
+        <button
+          onClick={() => {
+            setVoiceNavActive(true);
+            speakCue('Navigasi suara diaktifkan');
+          }}
+          className="flex items-center gap-2 px-3 py-2 sm:py-2.5 rounded-full bg-slate-900/95 hover:bg-slate-950 text-white border border-slate-700/80 shadow-2xl backdrop-blur-md active:scale-95 transition-all group"
+          title="Nyalakan Kontrol Suara (V)"
+          aria-label="Nyalakan Kontrol Suara (V)"
+        >
+          <div className="relative flex items-center justify-center w-7 h-7 rounded-full bg-rose-600 text-white shadow-xs group-hover:scale-105 transition-transform">
+            <Mic className="w-3.5 h-3.5" />
+          </div>
+          <span className="text-xs font-bold text-slate-200 group-hover:text-white pr-0.5">
+            Kontrol Suara
+          </span>
+          <kbd className="hidden sm:inline text-[10px] font-mono bg-slate-800 px-1.5 py-0.5 rounded border border-slate-700 text-slate-400">
+            V
+          </kbd>
+        </button>
+      </div>
+    );
+  }
 
   return (
     <div
       role="region"
       aria-label="Kontrol Navigasi Suara Bebas Tangan"
-      className="fixed bottom-20 lg:bottom-6 right-4 sm:right-6 z-50 flex flex-col items-end select-none"
+      className="fixed bottom-20 lg:bottom-6 right-3 sm:right-6 z-50 flex flex-col items-end select-none"
     >
-      {/* Optional Interactive Command Palette Popover (Shown only when Sparkles icon is clicked) */}
+      {/* Optional Interactive Command Palette Popover (Shown when Sparkles icon or Pilih Aksi is clicked) */}
       {showHelp && (
-        <div className="mb-2.5 w-72 sm:w-80 p-3 rounded-2xl bg-slate-950/95 backdrop-blur-xl border border-white/10 shadow-2xl space-y-2 animate-in fade-in slide-in-from-bottom-2 duration-150">
-          <div className="flex items-center justify-between text-xs text-slate-400 pb-1 border-b border-slate-800">
+        <div className="mb-2.5 w-76 sm:w-84 p-3.5 rounded-2xl bg-slate-950/95 backdrop-blur-xl border border-white/10 shadow-2xl space-y-2.5 animate-in fade-in slide-in-from-bottom-2 duration-150">
+          <div className="flex items-center justify-between text-xs text-slate-400 pb-1.5 border-b border-slate-800">
             <span className="font-bold flex items-center gap-1.5 text-slate-200">
               <Sparkles className="w-3.5 h-3.5 text-cyan-400" />
-              <span>Contoh Perintah Suara</span>
+              <span>Daftar Perintah Suara & Pintasan</span>
             </span>
             <button
               onClick={() => setShowHelp(false)}
@@ -456,16 +510,20 @@ export const VoiceNavigator: React.FC<VoiceNavigatorProps> = ({ onNavigateTab })
               ✕
             </button>
           </div>
-          <div className="grid grid-cols-2 gap-1.5 pt-1">
+
+          {/* Quick 1-Tap Command Action Chips (Works in 100% of browsers including Firefox & Safari) */}
+          <div className="grid grid-cols-2 gap-1.5">
             {[
-              { label: '🎙️ Mulai Transkrip', text: 'mulai transkrip' },
+              { label: '🎙️ Transkrip Live', text: 'mulai transkrip' },
               { label: '⏹️ Hentikan', text: 'hentikan transkrip' },
               { label: '🔊 Putar Suara', text: 'putar suara' },
               { label: '⏸️ Jeda Suara', text: 'jeda suara' },
               { label: '📋 Baca Salinan', text: 'baca salinan' },
               { label: '☀️ Kontras Kuning', text: 'kontras kuning' },
-              { label: '📖 Disleksia', text: 'mode disleksia' },
+              { label: '📖 Font Disleksia', text: 'mode disleksia' },
               { label: '🏠 Beranda', text: 'beranda' },
+              { label: '🤟 Bahasa Isyarat', text: 'bahasa isyarat' },
+              { label: '🔍 Perbesar Teks', text: 'perbesar teks' },
             ].map((item, idx) => (
               <button
                 key={idx}
@@ -479,12 +537,41 @@ export const VoiceNavigator: React.FC<VoiceNavigatorProps> = ({ onNavigateTab })
               </button>
             ))}
           </div>
+
+          {/* Fallback Text Command Form: Type any command manually */}
+          <form
+            onSubmit={(e) => {
+              e.preventDefault();
+              if (customCommandInput.trim()) {
+                processCommand(customCommandInput.trim());
+                setCustomCommandInput('');
+                setShowHelp(false);
+              }
+            }}
+            className="flex items-center gap-1.5 pt-2 border-t border-slate-800"
+          >
+            <input
+              type="text"
+              value={customCommandInput}
+              onChange={(e) => setCustomCommandInput(e.target.value)}
+              placeholder="Ketik perintah (cth: buka beranda)..."
+              className="flex-1 bg-slate-900 border border-slate-700 rounded-lg px-2.5 py-1 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-cyan-400"
+            />
+            <button
+              type="submit"
+              className="px-3 py-1 bg-cyan-600 hover:bg-cyan-500 text-white text-xs font-bold rounded-lg transition shrink-0 active:scale-95"
+            >
+              Kirim
+            </button>
+          </form>
         </div>
       )}
 
       {/* Sleek Floating Dynamic Island Pill */}
-      <div className={`flex items-center gap-3 px-3 py-2 rounded-full backdrop-blur-xl bg-slate-950/90 text-white border transition-all duration-300 shadow-2xl ${
-        permissionError
+      <div className={`flex items-center gap-2.5 sm:gap-3 px-3 py-2 rounded-full backdrop-blur-xl bg-slate-950/90 text-white border transition-all duration-300 shadow-2xl ${
+        !isSpeechSupported
+          ? 'border-amber-500/60 ring-1 ring-amber-500/30'
+          : permissionError
           ? 'border-rose-500/80 bg-rose-950/90 ring-2 ring-rose-500/40'
           : isLiveTranscribing
           ? 'border-rose-500/70 ring-2 ring-rose-500/30 shadow-[0_0_25px_rgba(244,63,94,0.4)]'
@@ -493,7 +580,11 @@ export const VoiceNavigator: React.FC<VoiceNavigatorProps> = ({ onNavigateTab })
           : 'border-slate-800'
       }`}>
         {/* Glowing Animated Microphone Orb */}
-        <div className="relative flex items-center justify-center shrink-0 w-8 h-8 rounded-full bg-gradient-to-tr from-blue-600 via-indigo-600 to-cyan-400 text-white shadow-md">
+        <button
+          onClick={requestMicrophoneAccess}
+          className="relative flex items-center justify-center shrink-0 w-8 h-8 rounded-full bg-gradient-to-tr from-blue-600 via-indigo-600 to-cyan-400 text-white shadow-md active:scale-95 transition-transform"
+          title="Klik untuk menyambungkan mikrofon"
+        >
           {isListening && (
             <span className={`absolute -inset-1 rounded-full ${
               isLiveTranscribing
@@ -502,16 +593,26 @@ export const VoiceNavigator: React.FC<VoiceNavigatorProps> = ({ onNavigateTab })
             } blur-[2px]`} />
           )}
           <Mic className="w-4 h-4 relative z-10" />
-        </div>
+        </button>
 
         {/* Dynamic Center Stage: Living animations & zero text clutter */}
         <div className="min-w-0 pr-1">
-          {permissionError ? (
+          {!isSpeechSupported ? (
+            <div className="flex items-center gap-2 text-xs text-amber-300">
+              <span className="truncate max-w-[125px] sm:max-w-[170px]">Mode Aksi Suara</span>
+              <button
+                onClick={() => setShowHelp(true)}
+                className="px-2.5 py-0.5 rounded-full bg-amber-400 hover:bg-amber-300 text-slate-950 text-[10px] font-bold shrink-0 transition shadow-xs"
+              >
+                Pilih Aksi
+              </button>
+            </div>
+          ) : permissionError ? (
             <div className="flex items-center gap-2 text-xs text-rose-300">
-              <span className="truncate max-w-[150px]">Izin mikrofon diperlukan</span>
+              <span className="truncate max-w-[140px] sm:max-w-[180px]">Izin mikrofon diperlukan</span>
               <button
                 onClick={requestMicrophoneAccess}
-                className="px-2 py-0.5 rounded-full bg-rose-600 hover:bg-rose-500 text-white text-[10px] font-bold shrink-0 transition"
+                className="px-2.5 py-0.5 rounded-full bg-rose-600 hover:bg-rose-500 text-white text-[10px] font-bold shrink-0 transition"
               >
                 Izinkan
               </button>
@@ -521,10 +622,10 @@ export const VoiceNavigator: React.FC<VoiceNavigatorProps> = ({ onNavigateTab })
               <div className="w-4 h-4 rounded-full bg-emerald-500/20 flex items-center justify-center text-emerald-400 shrink-0">
                 <Check className="w-3 h-3 stroke-[3]" />
               </div>
-              <span className="truncate max-w-[170px] sm:max-w-[220px]">{successMessage}</span>
+              <span className="truncate max-w-[160px] sm:max-w-[220px]">{successMessage}</span>
             </div>
           ) : liveTranscript ? (
-            <div className="flex items-center gap-2 max-w-[170px] sm:max-w-[220px] animate-in fade-in duration-100">
+            <div className="flex items-center gap-2 max-w-[160px] sm:max-w-[220px] animate-in fade-in duration-100">
               <span className="text-xs font-semibold text-cyan-300 italic truncate">
                 "{liveTranscript}"
               </span>
@@ -576,8 +677,8 @@ export const VoiceNavigator: React.FC<VoiceNavigatorProps> = ({ onNavigateTab })
           <button
             onClick={() => setVoiceNavActive(false)}
             className="p-1.5 rounded-full text-slate-400 hover:text-white hover:bg-white/10 transition"
-            title="Matikan navigasi suara (V)"
-            aria-label="Tutup navigasi suara"
+            title="Sembunyikan navigasi suara (V)"
+            aria-label="Sembunyikan navigasi suara"
           >
             <X className="w-3.5 h-3.5" />
           </button>
