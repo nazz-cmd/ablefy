@@ -100,16 +100,16 @@ export const SignHub: React.FC = () => {
   };
 
   return (
-    <div className="w-full max-w-[1536px] mx-auto px-4 sm:px-6 lg:px-8 py-6 pb-20">
-      <div className="flex flex-col lg:flex-row gap-6 lg:gap-8 items-start w-full">
+    <div className="w-full max-w-[1536px] mx-auto px-3 sm:px-6 lg:px-8 py-6 pb-20 overflow-x-hidden">
+      <div className="flex flex-col lg:flex-row gap-6 lg:gap-8 items-start w-full min-w-0">
         {/* ======================================================== */}
         {/* CENTER COLUMN: Main Content                              */}
         {/* ======================================================== */}
-        <div className="flex-1 min-w-0 space-y-6">
+        <div className="flex-1 min-w-0 space-y-6 w-full max-w-full">
           {/* Header Banner */}
-          <div className="rounded-2xl border border-slate-200/90 dark:border-slate-800 bg-white dark:bg-slate-900 p-5 sm:p-6 shadow-xs">
+          <div className="rounded-2xl border border-slate-200/90 dark:border-slate-800 bg-white dark:bg-slate-900 p-4 sm:p-6 shadow-xs w-full max-w-full overflow-hidden">
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-              <div className="space-y-1.5 max-w-2xl">
+              <div className="space-y-1.5 max-w-2xl min-w-0">
                 <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full text-xs font-bold bg-blue-50 text-blue-700 dark:bg-blue-950/60 dark:text-blue-300 border border-blue-200/80 dark:border-blue-800">
                   <BookOpen className="w-3.5 h-3.5" />
                   <span>Bahasa Isyarat Indonesia (BISINDO) Hub</span>
@@ -144,31 +144,33 @@ export const SignHub: React.FC = () => {
             </div>
 
             {/* Segmented Main Navigation Switcher (2 Tabs Only) */}
-            <div className="pt-5 flex justify-start sm:justify-center">
-              <div className="inline-flex p-1 bg-slate-100 dark:bg-slate-800 rounded-xl border border-slate-200/80 dark:border-slate-700 w-full sm:w-auto">
+            <div className="pt-5 flex justify-start sm:justify-center w-full">
+              <div className="grid grid-cols-2 p-1 bg-slate-100 dark:bg-slate-800 rounded-xl border border-slate-200/80 dark:border-slate-700 w-full sm:w-auto sm:flex gap-1">
                 <button
                   type="button"
                   onClick={() => setActiveTab('builder')}
-                  className={`flex-1 sm:flex-initial flex items-center justify-center gap-2 px-5 py-2 rounded-lg text-xs sm:text-sm font-bold transition ${
+                  className={`flex items-center justify-center gap-1.5 px-2.5 sm:px-5 py-2 rounded-lg text-xs sm:text-sm font-bold transition ${
                     activeTab === 'builder'
                       ? 'bg-white dark:bg-slate-900 text-blue-600 dark:text-blue-400 shadow-2xs font-extrabold'
                       : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
                   }`}
                 >
-                  <Sparkles className="w-4 h-4 text-blue-600" />
-                  <span>Papan Susun Kalimat Isyarat</span>
+                  <Sparkles className="w-3.5 h-3.5 text-blue-600 shrink-0" />
+                  <span className="hidden sm:inline">Papan Susun Kalimat Isyarat</span>
+                  <span className="sm:hidden truncate">Susun Kalimat</span>
                 </button>
                 <button
                   type="button"
                   onClick={() => setActiveTab('kamus')}
-                  className={`flex-1 sm:flex-initial flex items-center justify-center gap-2 px-5 py-2 rounded-lg text-xs sm:text-sm font-bold transition ${
+                  className={`flex items-center justify-center gap-1.5 px-2.5 sm:px-5 py-2 rounded-lg text-xs sm:text-sm font-bold transition ${
                     activeTab === 'kamus'
                       ? 'bg-white dark:bg-slate-900 text-blue-600 dark:text-blue-400 shadow-2xs font-extrabold'
                       : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
                   }`}
                 >
-                  <BookOpen className="w-4 h-4 text-emerald-600" />
-                  <span>Kamus Kosakata Lengkap</span>
+                  <BookOpen className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
+                  <span className="hidden sm:inline">Kamus Kosakata Lengkap</span>
+                  <span className="sm:hidden truncate">Kamus Isyarat</span>
                 </button>
               </div>
             </div>

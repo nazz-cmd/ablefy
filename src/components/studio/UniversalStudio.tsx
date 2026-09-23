@@ -517,14 +517,14 @@ export const UniversalStudio: React.FC = () => {
   const progressPercent = sentences.length > 0 ? Math.round(((currentSentenceIndex + 1) / sentences.length) * 100) : 0;
 
   return (
-    <div className="w-full max-w-[1536px] mx-auto px-4 sm:px-6 lg:px-8 py-6 pb-28">
+    <div className="w-full max-w-[1536px] mx-auto px-3 sm:px-6 lg:px-8 py-6 pb-28 overflow-x-hidden">
       {/* 2-Column Responsive Layout Matching Otter.ai & HomeWorkspace */}
-      <div className="flex flex-col lg:flex-row gap-6 lg:gap-8 items-start w-full">
+      <div className="flex flex-col lg:flex-row gap-6 lg:gap-8 items-start w-full min-w-0">
 
         {/* ======================================================== */}
         {/* LEFT / CENTER COLUMN: Reading Canvas & Empty State       */}
         {/* ======================================================== */}
-        <div className="flex-1 min-w-0 space-y-6">
+        <div className="flex-1 min-w-0 space-y-6 w-full max-w-full">
           {!textContent.trim() ? (
             /* Welcoming Empty State Card */
             <div className="bg-white dark:bg-slate-900 rounded-2xl border border-dashed border-slate-300 dark:border-slate-700 p-8 sm:p-12 text-center shadow-xs animate-in fade-in duration-150">
@@ -650,7 +650,7 @@ export const UniversalStudio: React.FC = () => {
 
           {/* Persistent Audio Playback Controller (when text is present) */}
           {textContent.trim() && (
-            <div className="sticky bottom-16 lg:bottom-4 z-30 rounded-2xl bg-white/95 dark:bg-slate-900/95 backdrop-blur-md border border-slate-200/90 dark:border-slate-800 p-3 sm:p-4 shadow-xl transition-all">
+            <div className="sticky bottom-16 lg:bottom-4 z-30 rounded-2xl bg-white/95 dark:bg-slate-900/95 backdrop-blur-md border border-slate-200/90 dark:border-slate-800 p-3 sm:p-4 shadow-xl transition-all w-full max-w-full overflow-hidden">
               <div className="flex flex-col md:flex-row md:items-center justify-between gap-3 sm:gap-4">
                 {/* Left: Playback Info & Progress */}
                 <div className="flex items-center gap-3 min-w-0 flex-1">
@@ -667,7 +667,7 @@ export const UniversalStudio: React.FC = () => {
                     <div className="text-xs sm:text-sm font-bold text-slate-900 dark:text-white truncate">
                       {sentences[currentSentenceIndex]?.slice(0, 60)}...
                     </div>
-                    <div className="text-xs text-slate-500 dark:text-slate-400 font-medium flex items-center gap-2">
+                    <div className="text-xs text-slate-500 dark:text-slate-400 font-medium flex flex-wrap items-center gap-1.5 sm:gap-2">
                       <span>{progressPercent}% selesai</span>
                       <span>•</span>
                       <span className="inline-flex items-center gap-1 font-semibold text-indigo-600 dark:text-indigo-400">

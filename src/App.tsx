@@ -185,7 +185,7 @@ export const AppContent: React.FC = () => {
   ]);
 
   return (
-    <div className="min-h-screen bg-[#fafafa] text-slate-900 transition-colors selection:bg-blue-100 selection:text-blue-900">
+    <div className="min-h-screen w-full max-w-full overflow-x-hidden bg-[#fafafa] text-slate-900 transition-colors selection:bg-blue-100 selection:text-blue-900">
       {/* WCAG Mandatory Skip Landmark */}
       <SkipToContent />
 
@@ -197,7 +197,7 @@ export const AppContent: React.FC = () => {
         <LandingPage onLaunchApp={handleLaunchApp} />
       ) : (
         /* VIEW 2: Assistive Workspace Canvas */
-        <div className="pb-6 lg:pb-0 min-h-screen">
+        <div className="pb-6 lg:pb-0 min-h-screen w-full max-w-full overflow-x-hidden">
           {/* Permanent Desktop Navigation Rail & Mobile Slide-In Off-Canvas Drawer */}
           <AppSidebar
             activeTab={activeTab}
@@ -211,7 +211,7 @@ export const AppContent: React.FC = () => {
 
           {/* Main Workspace Canvas (Smooth Offset by Sidebar on Desktop) */}
           <div
-            className={`flex flex-col min-h-screen transition-all duration-300 ease-[cubic-bezier(0.16,1,0.3,1)] ${
+            className={`flex flex-col min-h-screen w-full max-w-full min-w-0 overflow-x-hidden transition-all duration-300 ease-[cubic-bezier(0.16,1,0.3,1)] ${
               isSidebarCollapsed ? 'lg:pl-16' : 'lg:pl-64'
             }`}
           >
@@ -223,7 +223,7 @@ export const AppContent: React.FC = () => {
             />
 
             {/* Active Module Canvas */}
-            <main id="main-content" tabIndex={-1} className="flex-1 focus:outline-none">
+            <main id="main-content" tabIndex={-1} className="flex-1 w-full max-w-full min-w-0 overflow-x-hidden focus:outline-none">
               {activeTab === 'home' && <HomeWorkspace onNavigate={setActiveTab} />}
               {activeTab === 'lecture' && <LectureCompanion />}
               {activeTab === 'studio' && <UniversalStudio />}

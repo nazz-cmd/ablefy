@@ -256,10 +256,10 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onLaunchApp }) => {
   };
 
   return (
-    <div className="min-h-screen bg-[#fafafa] text-slate-900 selection:bg-blue-100 selection:text-blue-900 font-sans">
+    <div className="min-h-screen w-full max-w-full overflow-x-hidden bg-[#fafafa] text-slate-900 selection:bg-blue-100 selection:text-blue-900 font-sans">
       {/* 1. Global Public Navbar (Left Menus with Hover Dropdowns, Open Center, Right CTA Only) */}
-      <header className="sticky top-0 z-50 bg-white/95 backdrop-blur-md border-b border-slate-200/80 transition-all">
-        <div className="w-full max-w-[1536px] mx-auto px-6 sm:px-10 lg:px-14 xl:px-20 h-16 flex items-center justify-between">
+      <header className="sticky top-0 z-50 bg-white/95 backdrop-blur-md border-b border-slate-200/80 transition-all w-full max-w-full overflow-hidden">
+        <div className="w-full max-w-[1536px] mx-auto px-4 sm:px-10 lg:px-14 xl:px-20 h-16 flex items-center justify-between gap-2">
           
           {/* Sisi Kiri: Logo + Menu Dropdown yang Bersebelahan Dekat dengan Logo */}
           <div className="flex items-center gap-6 lg:gap-8">
@@ -437,21 +437,22 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onLaunchApp }) => {
           <div className="flex-1" />
 
           {/* Sisi Kanan: HANYA Tombol Buka Workspace Saja */}
-          <div className="flex items-center">
+          <div className="flex items-center shrink-0">
             <button
               onClick={() => onLaunchApp('home')}
-              className="px-4.5 py-2 rounded-full bg-blue-600 hover:bg-blue-700 text-white text-xs sm:text-sm font-bold shadow-sm hover:shadow-md transition-all flex items-center gap-1.5 active:scale-95"
+              className="px-3 sm:px-4.5 py-2 rounded-full bg-blue-600 hover:bg-blue-700 text-white text-xs sm:text-sm font-bold shadow-sm hover:shadow-md transition-all flex items-center gap-1.5 active:scale-95 shrink-0"
             >
-              <span>Buka Workspace (Gratis)</span>
-              <ArrowRight className="w-4 h-4" />
+              <span className="hidden sm:inline">Buka Workspace (Gratis)</span>
+              <span className="sm:hidden">Workspace</span>
+              <ArrowRight className="w-3.5 h-3.5" />
             </button>
           </div>
         </div>
       </header>
 
       {/* 2. Hero Section: Left Copywriting + Right Visual Human-like Voice & Live Mockup */}
-      <section className="relative overflow-hidden py-10 lg:py-16 border-b border-slate-200/80 bg-white">
-        <div className="w-full max-w-[1536px] mx-auto px-6 sm:px-10 lg:px-14 xl:px-20">
+      <section className="relative overflow-hidden py-10 lg:py-16 border-b border-slate-200/80 bg-white w-full max-w-full">
+        <div className="w-full max-w-[1536px] mx-auto px-4 sm:px-10 lg:px-14 xl:px-20">
           <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 lg:gap-12 items-center">
             
             {/* Kolom Kiri: Teks Judul & Subjudul Resmi */}
@@ -643,7 +644,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onLaunchApp }) => {
       </section>
 
       {/* 3. FITUR ASISTIF (Desain Tiap Kartu Dibuat Unik, Visual & Tidak Monoton) (#fitur-asistif) */}
-      <section id="fitur-asistif" className="py-20 max-w-[1536px] mx-auto px-6 sm:px-10 lg:px-14 xl:px-20 space-y-12">
+      <section id="fitur-asistif" className="py-14 sm:py-20 max-w-[1536px] mx-auto px-4 sm:px-10 lg:px-14 xl:px-20 space-y-12 w-full max-w-full overflow-hidden">
         <div className="text-center max-w-2xl mx-auto space-y-3">
           <div className="text-xs font-bold uppercase tracking-widest text-blue-600">
             Fasilitas Inklusif
@@ -911,8 +912,8 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onLaunchApp }) => {
       </section>
 
       {/* 4. Bottom Launch Callout (Proportional Wide Container) */}
-      <section className="py-20 bg-gradient-to-br from-blue-700 via-indigo-700 to-slate-950 text-white text-center">
-        <div className="w-full max-w-4xl mx-auto px-6 sm:px-10 space-y-6">
+      <section className="py-14 sm:py-20 bg-gradient-to-br from-blue-700 via-indigo-700 to-slate-950 text-white text-center w-full max-w-full overflow-hidden">
+        <div className="w-full max-w-4xl mx-auto px-4 sm:px-10 space-y-6">
           <h2 className="text-3xl sm:text-4xl font-extrabold tracking-tight">
             Mulai Gunakan Ablefy Sekarang.
           </h2>
@@ -923,7 +924,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onLaunchApp }) => {
           <div className="pt-2">
             <button
               onClick={() => onLaunchApp('home')}
-              className="px-8 py-4 rounded-2xl bg-white hover:bg-slate-100 text-slate-950 font-extrabold text-sm sm:text-base shadow-2xl flex items-center gap-2.5 mx-auto transition transform hover:scale-105 active:scale-95"
+              className="px-6 sm:px-8 py-3.5 sm:py-4 rounded-2xl bg-white hover:bg-slate-100 text-slate-950 font-extrabold text-sm sm:text-base shadow-2xl flex items-center gap-2.5 mx-auto transition transform hover:scale-105 active:scale-95"
             >
               <span>Buka Workspace Sekarang (Gratis)</span>
               <ArrowRight className="w-4 h-4 text-blue-600" />
@@ -933,8 +934,8 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onLaunchApp }) => {
       </section>
 
       {/* 5. Minimalist Professional Footer (No Competition Watermark) */}
-      <footer className="bg-white border-t border-slate-200/90 py-10 text-slate-500 text-xs">
-        <div className="w-full max-w-[1536px] mx-auto px-6 sm:px-10 lg:px-14 xl:px-20 flex flex-col sm:flex-row items-center justify-between gap-4">
+      <footer className="bg-white border-t border-slate-200/90 py-8 sm:py-10 text-slate-500 text-xs w-full max-w-full overflow-hidden">
+        <div className="w-full max-w-[1536px] mx-auto px-4 sm:px-10 lg:px-14 xl:px-20 flex flex-col sm:flex-row items-center justify-between gap-4">
           <div className="flex items-center gap-2">
             <AblefyLogo className="w-6 h-6" size={24} />
             <span className="font-extrabold text-slate-950">Ablefy</span>

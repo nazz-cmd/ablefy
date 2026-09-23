@@ -18,9 +18,9 @@ export const Hero: React.FC<HeroProps> = ({ onNavigate }) => {
   const { speakText } = useAccessibility();
 
   return (
-    <div className="relative overflow-hidden py-12 sm:py-20">
+    <div className="relative overflow-hidden py-12 sm:py-20 w-full max-w-full">
       {/* Background Decorative Gradients */}
-      <div className="absolute top-1/4 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[600px] h-[350px] bg-indigo-400/15 dark:bg-indigo-600/10 rounded-full blur-3xl -z-10 pointer-events-none" />
+      <div className="absolute top-1/4 left-1/2 -translate-x-1/2 -translate-y-1/2 w-72 sm:w-[600px] h-[250px] sm:h-[350px] bg-indigo-400/15 dark:bg-indigo-600/10 rounded-full blur-3xl -z-10 pointer-events-none" />
 
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         {/* Main Hero Header */}

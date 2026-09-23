@@ -102,14 +102,14 @@ export const HomeWorkspace: React.FC<HomeWorkspaceProps> = ({ onNavigate }) => {
   });
 
   return (
-    <div className="w-full max-w-[1536px] mx-auto px-4 sm:px-6 lg:px-8 py-6">
+    <div className="w-full max-w-[1536px] mx-auto px-3 sm:px-6 lg:px-8 py-6 overflow-x-hidden">
       {/* 2-Column Responsive Layout Matching Otter.ai */}
-      <div className="flex flex-col lg:flex-row gap-6 lg:gap-8 items-start w-full">
+      <div className="flex flex-col lg:flex-row gap-6 lg:gap-8 items-start w-full min-w-0">
         
         {/* ======================================================== */}
         {/* LEFT / CENTER COLUMN: Activity Feed & Modules            */}
         {/* ======================================================== */}
-        <div className="flex-1 min-w-0 space-y-6">
+        <div className="flex-1 min-w-0 space-y-6 w-full max-w-full">
           
           {/* Header Row: Date Filter & "For You" Dropdown (Otter Style) */}
           <div className="flex flex-wrap items-center justify-between gap-3">

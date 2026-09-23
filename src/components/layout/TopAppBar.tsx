@@ -63,9 +63,9 @@ export const TopAppBar: React.FC<TopAppBarProps> = ({
   };
 
   return (
-    <header className="sticky top-0 z-30 bg-white/95 dark:bg-slate-950/95 backdrop-blur-md border-b border-slate-200/80 dark:border-slate-800 h-14 px-3 sm:px-6 flex items-center justify-between gap-2 sm:gap-3 transition-colors">
+    <header className="sticky top-0 z-30 bg-white/95 dark:bg-slate-950/95 backdrop-blur-md border-b border-slate-200/80 dark:border-slate-800 h-14 px-3 sm:px-6 flex items-center justify-between gap-2 transition-colors w-full max-w-full overflow-hidden">
       {/* Left: Mobile Hamburger & Page Title */}
-      <div className="flex items-center gap-2.5 sm:gap-3 min-w-0">
+      <div className="flex items-center gap-2 sm:gap-3 min-w-0 flex-1">
         {/* Mobile Hamburger to slide open AppSidebar from left */}
         <button
           onClick={onOpenMobileSidebar}
@@ -91,10 +91,10 @@ export const TopAppBar: React.FC<TopAppBarProps> = ({
         {activeTab === 'home' && (
           <button
             onClick={handleStartTranscription}
-            className="flex items-center gap-1.5 sm:gap-2 px-2.5 sm:px-4 py-1.5 sm:py-2 rounded-full bg-blue-600 hover:bg-blue-700 active:scale-95 text-white text-[11px] sm:text-xs font-bold shadow-xs transition-all shrink-0"
+            className="flex items-center gap-1 sm:gap-2 px-2 sm:px-3 py-1.5 sm:py-2 rounded-full bg-blue-600 hover:bg-blue-700 active:scale-95 text-white text-[10px] sm:text-xs font-bold shadow-xs transition-all shrink-0"
             title="Mulai Transkripsi Suara Langsung (Hotkey 1)"
           >
-            <span className="w-2 h-2 rounded-full bg-rose-400 animate-pulse shrink-0" />
+            <span className="w-1.5 h-1.5 sm:w-2 sm:h-2 rounded-full bg-rose-400 animate-pulse shrink-0" />
             <Mic className="w-3.5 h-3.5 shrink-0" />
             <span className="hidden sm:inline">Transkripsi Live</span>
             <span className="sm:hidden">Transkrip</span>
@@ -103,7 +103,7 @@ export const TopAppBar: React.FC<TopAppBarProps> = ({
 
         {/* Direct Font Scaler Pill (100% | 115% | 130%) */}
         <div
-          className="flex items-center gap-0.5 p-0.5 sm:p-1 bg-slate-100 dark:bg-slate-900 rounded-xl border border-slate-200/80 dark:border-slate-800 text-xs font-bold"
+          className={`${activeTab === 'home' ? 'hidden sm:flex' : 'flex'} items-center gap-0.5 p-0.5 sm:p-1 bg-slate-100 dark:bg-slate-900 rounded-xl border border-slate-200/80 dark:border-slate-800 text-xs font-bold shrink-0`}
           role="group"
           aria-label="Pemilih Ukuran Teks"
         >
