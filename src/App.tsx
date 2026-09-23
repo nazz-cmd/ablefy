@@ -16,6 +16,9 @@ export const AppContent: React.FC = () => {
   // 'landing' for the Speechify/Otter public front door; 'app' for the internal assistive workspace
   const [viewMode, setViewMode] = useState<'landing' | 'app'>(() => {
     try {
+      const params = new URLSearchParams(window.location.search);
+      const urlView = params.get('view');
+      if (urlView === 'app' || urlView === 'landing') return urlView;
       const saved = localStorage.getItem('ablefy_view_mode');
       return saved === 'app' ? 'app' : 'landing';
     } catch {
@@ -24,6 +27,9 @@ export const AppContent: React.FC = () => {
   });
   const [activeTab, setActiveTab] = useState<string>(() => {
     try {
+      const params = new URLSearchParams(window.location.search);
+      const urlTab = params.get('tab');
+      if (urlTab) return urlTab;
       return localStorage.getItem('ablefy_active_tab') || 'home';
     } catch {
       return 'home';
