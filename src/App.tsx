@@ -249,7 +249,6 @@ export const AppContent: React.FC = () => {
           setViewMode('app');
           setActiveTab(tabId);
         }}
-        activeTab={activeTab}
       />
 
       {/* Motor & Single-Key Shortcut Sheet for Switch Devices & Motor-Disabled Users */}

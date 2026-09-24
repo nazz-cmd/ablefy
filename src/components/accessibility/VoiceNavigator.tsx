@@ -11,10 +11,9 @@ import { RealtimeAudioWave } from '../common/RealtimeAudioWave';
 
 interface VoiceNavigatorProps {
   onNavigateTab: (tabId: string) => void;
-  activeTab?: string;
 }
 
-export const VoiceNavigator: React.FC<VoiceNavigatorProps> = ({ onNavigateTab, activeTab }) => {
+export const VoiceNavigator: React.FC<VoiceNavigatorProps> = ({ onNavigateTab }) => {
   const {
     voiceNavActive,
     setVoiceNavActive,
@@ -25,7 +24,6 @@ export const VoiceNavigator: React.FC<VoiceNavigatorProps> = ({ onNavigateTab, a
     voiceCues,
     setVoiceCues,
     setIsShortcutsModalOpen,
-    speakText,
     speakCue,
     isSpeaking
   } = useAccessibility();
@@ -59,10 +57,14 @@ export const VoiceNavigator: React.FC<VoiceNavigatorProps> = ({ onNavigateTab, a
   const lastCommandTimeRef = useRef<number>(0);
   const restartTimeoutRef = useRef<any>(null);
   const isLiveTranscribingRef = useRef<boolean>(false);
+  const isListeningRef = useRef<boolean>(false);
+  const pendingCommandRef = useRef<string>('');
+  const interimCommandTimerRef = useRef<any>(null);
 
   voiceNavActiveRef.current = voiceNavActive;
   permissionErrorRef.current = permissionError;
   isLiveTranscribingRef.current = isLiveTranscribing;
+  isListeningRef.current = isListening;
 
   // Listen to live lecture recording status to prevent mic conflicts
   useEffect(() => {
@@ -106,7 +108,7 @@ export const VoiceNavigator: React.FC<VoiceNavigatorProps> = ({ onNavigateTab, a
       lastSpokenResponseRef.current = label;
       lastSpokenResponseTimeRef.current = Date.now();
       if (voiceCues) {
-        speakText(label);
+        speakCue(label);
       }
       setTimeout(() => {
         setSuccessMessage('');
@@ -245,11 +247,11 @@ export const VoiceNavigator: React.FC<VoiceNavigatorProps> = ({ onNavigateTab, a
       return true;
     }
 
-    // 3. Fallback: Semantic UI Clicker ("klik [nama tombol]", "tekan [opsi]")
-    // When live recording is active, ONLY click if user explicitly used click verbs like "klik", "tekan", "pencet"
-    const isExplicitClickPrefix = /^(tolong|coba|bisa|mohon)?\s*(klik|tekan|pencet)\b/i.test(phrase.trim());
-    if (!isLiveTranscribingRef.current || isExplicitClickPrefix) {
-      const clickedLabel = attemptVoiceElementClick(phrase);
+    // 3. Fallback: Semantic UI Clicker ONLY on explicit click verbs ("klik [nama tombol]", "tekan [opsi]")
+    const isExplicitClick = /^(tolong|coba|bisa|mohon)?\s*(klik|tekan|pencet|pilih)\b/i.test(phrase.trim());
+    if (isExplicitClick) {
+      const cleanTarget = phrase.replace(/^(tolong|coba|bisa|mohon)?\s*(klik|tekan|pencet|pilih)\s*/i, '').trim();
+      const clickedLabel = attemptVoiceElementClick(cleanTarget || phrase);
       if (clickedLabel) {
         const msg = `Mengklik ${clickedLabel}`;
         lastSpokenResponseRef.current = msg;
@@ -259,6 +261,19 @@ export const VoiceNavigator: React.FC<VoiceNavigatorProps> = ({ onNavigateTab, a
     }
 
     return false;
+  };
+
+  const executeCommand = (phrase: string) => {
+    const success = processCommand(phrase);
+    if (success) {
+      setTimeout(() => {
+        setLiveTranscript('');
+      }, 600);
+    } else {
+      setTimeout(() => {
+        setLiveTranscript('');
+      }, 1500);
+    }
   };
 
   const startRecognition = () => {
@@ -293,6 +308,7 @@ export const VoiceNavigator: React.FC<VoiceNavigatorProps> = ({ onNavigateTab, a
 
       recognition.onstart = () => {
         setIsListening(true);
+        isListeningRef.current = true;
         setPermissionError(null);
       };
 
@@ -312,17 +328,30 @@ export const VoiceNavigator: React.FC<VoiceNavigatorProps> = ({ onNavigateTab, a
         final = final.trim();
         interim = interim.trim();
 
-        const activeText = (final || interim).toLowerCase().trim();
-        if (!activeText) return;
+        // 1. Display real-time spoken text preview in glowing cyan
+        const currentSpeech = final || interim;
+        if (currentSpeech) {
+          setLiveTranscript(currentSpeech);
+        }
 
-        setLiveTranscript(activeText);
+        // 2. When final sentence recognized, execute immediately!
+        if (final) {
+          clearTimeout(interimCommandTimerRef.current);
+          pendingCommandRef.current = '';
+          executeCommand(final);
+          return;
+        }
 
-        const now = Date.now();
-        if (now - lastCommandTimeRef.current < 600) return;
-
-        const isCommand = processCommand(activeText);
-        if (isCommand) {
-          setLiveTranscript('');
+        // 3. When interim arrives, buffer and auto-promote on speech pause (750ms)
+        if (interim) {
+          pendingCommandRef.current = interim;
+          clearTimeout(interimCommandTimerRef.current);
+          interimCommandTimerRef.current = setTimeout(() => {
+            if (pendingCommandRef.current.trim() && isListeningRef.current) {
+              executeCommand(pendingCommandRef.current.trim());
+              pendingCommandRef.current = '';
+            }
+          }, 750);
         }
       };
 
@@ -330,6 +359,7 @@ export const VoiceNavigator: React.FC<VoiceNavigatorProps> = ({ onNavigateTab, a
         if (event.error === 'not-allowed' || event.error === 'service-not-allowed') {
           setPermissionError('Akses mikrofon diblokir. Klik ikon gembok di sebelah URL browser untuk mengizinkan mikrofon.');
           setIsListening(false);
+          isListeningRef.current = false;
           return;
         }
         // For benign browser errors ('audio-capture', 'no-speech', 'aborted', 'network'):
@@ -337,19 +367,25 @@ export const VoiceNavigator: React.FC<VoiceNavigatorProps> = ({ onNavigateTab, a
       };
 
       recognition.onend = () => {
-        setIsListening(false);
+        clearTimeout(interimCommandTimerRef.current);
+        if (pendingCommandRef.current.trim()) {
+          executeCommand(pendingCommandRef.current.trim());
+          pendingCommandRef.current = '';
+        }
 
-        // On desktop: auto-restart seamlessly
-        // On mobile: return to quiet standby ("Ketuk untuk bicara") unless user gave a command recently
+        // Auto-restart seamlessly when Voice Navigator is active
         const shouldAutoRestart = voiceNavActiveRef.current && !permissionErrorRef.current && typeof document !== 'undefined' && document.visibilityState !== 'hidden';
 
-        if (shouldAutoRestart && !isMobile && !isLiveTranscribingRef.current) {
+        if (shouldAutoRestart && !isLiveTranscribingRef.current) {
           clearTimeout(restartTimeoutRef.current);
           restartTimeoutRef.current = setTimeout(() => {
             if (voiceNavActiveRef.current && !permissionErrorRef.current && !isLiveTranscribingRef.current) {
               startRecognition();
             }
-          }, 600);
+          }, isMobile ? 350 : 250);
+        } else {
+          setIsListening(false);
+          isListeningRef.current = false;
         }
       };
 
@@ -368,21 +404,13 @@ export const VoiceNavigator: React.FC<VoiceNavigatorProps> = ({ onNavigateTab, a
 
   const toggleListening = () => {
     setPermissionError(null);
-    if (activeTab === 'lecture') {
-      // In lecture mode: tapping the mic starts/stops lecture recording directly!
-      if (isLiveTranscribingRef.current) {
-        dispatchAction('STOP_RECORDING');
-      } else {
-        dispatchAction('START_RECORDING');
-      }
-      return;
-    }
 
     if (isListening && recognitionRef.current) {
       try {
         recognitionRef.current.abort();
       } catch (_) {}
       setIsListening(false);
+      isListeningRef.current = false;
     } else {
       startRecognition();
     }
@@ -554,7 +582,7 @@ export const VoiceNavigator: React.FC<VoiceNavigatorProps> = ({ onNavigateTab, a
         <button
           onClick={toggleListening}
           className="relative flex items-center justify-center shrink-0 w-8 h-8 rounded-full bg-gradient-to-tr from-blue-600 via-indigo-600 to-cyan-400 text-white shadow-md active:scale-95 transition-transform"
-          title={isLiveTranscribing ? "Hentikan perekaman" : isListening ? "Klik untuk jeda mendengar" : activeTab === 'lecture' ? "Mulai rekam transkrip" : "Klik untuk bicara"}
+          title={isListening ? "Klik untuk jeda mendengar" : "Klik untuk bicara"}
         >
           {(isListening || isLiveTranscribing) && (
             <span className={`absolute -inset-1 rounded-full ${
@@ -639,7 +667,7 @@ export const VoiceNavigator: React.FC<VoiceNavigatorProps> = ({ onNavigateTab, a
                 variant="cyan"
               />
               <span className="text-[11px] text-slate-300 font-medium transition-opacity duration-300 truncate max-w-[130px] sm:max-w-[170px]">
-                {isListening ? (isMobile ? 'Mendengarkan...' : ROTATING_HINTS[hintIndex]) : (activeTab === 'lecture' ? 'Ketuk untuk rekam' : 'Ketuk untuk bicara')}
+                {isListening ? (isMobile ? 'Mendengarkan...' : ROTATING_HINTS[hintIndex]) : 'Ketuk untuk bicara'}
               </span>
             </div>
           )}
