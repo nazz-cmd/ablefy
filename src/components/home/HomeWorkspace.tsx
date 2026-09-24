@@ -115,7 +115,7 @@ export const HomeWorkspace: React.FC<HomeWorkspaceProps> = ({ onNavigate }) => {
           <div className="flex flex-wrap items-center justify-between gap-3">
             <div className="flex items-center gap-2">
               <h2 className="text-base sm:text-lg font-bold text-slate-900 dark:text-white flex items-center gap-1.5">
-                <span>Hari Ini, 22 Sep</span>
+                <span>Hari Ini, {new Intl.DateTimeFormat('id-ID', { day: 'numeric', month: 'short' }).format(new Date())}</span>
                 <ChevronDown className="w-4 h-4 text-slate-400" />
               </h2>
             </div>
