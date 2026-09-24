@@ -709,7 +709,7 @@ export const LectureCompanion: React.FC = () => {
     }
   };
 
-  const startStandaloneRecognition = async () => {
+  const startStandaloneRecognition = () => {
     const SpeechAPI = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
     if (!SpeechAPI) {
       simulateLiveTranscription();

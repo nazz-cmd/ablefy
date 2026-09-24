@@ -273,7 +273,7 @@ export const VoiceNavigator: React.FC<VoiceNavigatorProps> = ({ onNavigateTab })
     }
   };
 
-  const startRecognition = async () => {
+  const startRecognition = () => {
     if (!voiceNavActiveRef.current) return;
 
     // Synchronously clear old error states
@@ -287,23 +287,6 @@ export const VoiceNavigator: React.FC<VoiceNavigatorProps> = ({ onNavigateTab })
       setShowHelp(true);
       speakCue('Peramban ini tidak mendukung input suara langsung. Silakan pilih tombol aksi.', undefined, true);
       return;
-    }
-
-    // Proactively prime device OS microphone permissions with immediate sequential release
-    if (typeof navigator !== 'undefined' && navigator.mediaDevices && navigator.mediaDevices.getUserMedia) {
-      try {
-        const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-        stream.getTracks().forEach((track) => track.stop());
-      } catch (err: any) {
-        if (err.name === 'NotAllowedError' || err.name === 'PermissionDeniedError') {
-          const errMsg = 'Akses mikrofon ditolak di peramban Anda. Klik ikon gembok di sebelah URL untuk mengizinkan.';
-          setPermissionError(errMsg);
-          permissionErrorRef.current = errMsg;
-          setIsListening(false);
-          isListeningRef.current = false;
-          return;
-        }
-      }
     }
 
     // Completely abort and unbind previous instance to prevent deadlocks and leaks
@@ -320,7 +303,8 @@ export const VoiceNavigator: React.FC<VoiceNavigatorProps> = ({ onNavigateTab })
 
     try {
       const recognition = new SpeechAPI();
-      recognition.continuous = true;
+      // On mobile, continuous MUST be false for reliable utterance recognition on Android/iOS
+      recognition.continuous = !isMobile;
       recognition.interimResults = true;
       recognition.lang = 'id-ID';
       recognition.maxAlternatives = 1;
@@ -363,7 +347,7 @@ export const VoiceNavigator: React.FC<VoiceNavigatorProps> = ({ onNavigateTab })
             pendingCommandRef.current = '';
             setTimeout(() => {
               setLiveTranscript('');
-            }, 500);
+            }, 600);
             return;
           }
         }
@@ -390,8 +374,9 @@ export const VoiceNavigator: React.FC<VoiceNavigatorProps> = ({ onNavigateTab })
       };
 
       recognition.onerror = (event: any) => {
+        console.warn('VoiceNavigator speech error:', event?.error);
         if (event.error === 'not-allowed' || event.error === 'service-not-allowed') {
-          // If error happened while listening was not established, report permission blocked
+          // If error happened while listening was not active, report permission blocked
           if (!isListeningRef.current) {
             setPermissionError('Akses mikrofon diblokir. Klik ikon gembok di sebelah URL browser untuk mengizinkan mikrofon.');
             permissionErrorRef.current = 'blocked';
@@ -400,7 +385,12 @@ export const VoiceNavigator: React.FC<VoiceNavigatorProps> = ({ onNavigateTab })
           isListeningRef.current = false;
           return;
         }
-        // Non-fatal errors ('audio-capture', 'no-speech', 'aborted', 'network') are handled cleanly by onend
+        if (event.error === 'network') {
+          setLiveTranscript('Koneksi layanan suara terputus');
+          setTimeout(() => setLiveTranscript(''), 2000);
+        }
+        setIsListening(false);
+        isListeningRef.current = false;
       };
 
       recognition.onend = () => {
@@ -410,7 +400,15 @@ export const VoiceNavigator: React.FC<VoiceNavigatorProps> = ({ onNavigateTab })
           pendingCommandRef.current = '';
         }
 
-        // Auto-restart seamlessly when Voice Navigator is active
+        // On mobile: cleanly return to quiet standby ("Ketuk untuk bicara")
+        // This avoids Android Chrome beeps and headless restart "not-allowed" rejections!
+        if (isMobile) {
+          setIsListening(false);
+          isListeningRef.current = false;
+          return;
+        }
+
+        // On desktop: auto-restart seamlessly when Voice Navigator is active
         const shouldAutoRestart = voiceNavActiveRef.current && !permissionErrorRef.current && typeof document !== 'undefined' && document.visibilityState !== 'hidden';
 
         if (shouldAutoRestart && !isLiveTranscribingRef.current) {
@@ -424,7 +422,7 @@ export const VoiceNavigator: React.FC<VoiceNavigatorProps> = ({ onNavigateTab })
                 isListeningRef.current = false;
               }
             }
-          }, isMobile ? 400 : 250);
+          }, 250);
         } else {
           setIsListening(false);
           isListeningRef.current = false;
