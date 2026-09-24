@@ -714,15 +714,11 @@ export const LectureCompanion: React.FC = () => {
       return;
     }
 
-    const isMobile = typeof navigator !== 'undefined' && /Android|iPhone|iPad|iPod|Mobile/i.test(navigator.userAgent);
-
     stopStandaloneRecognition();
 
     try {
       const recognition = new SpeechAPI();
-      // Android Chrome freezes/fails on continuous: true (Chromium bug #1157218).
-      // On mobile, continuous MUST be false with clean auto-reconnect on onend.
-      recognition.continuous = !isMobile;
+      recognition.continuous = true;
       recognition.interimResults = true;
       recognition.lang = 'id-ID';
 
@@ -793,7 +789,7 @@ export const LectureCompanion: React.FC = () => {
             if (isListeningRef.current && !voiceNavActiveRef.current) {
               startStandaloneRecognition();
             }
-          }, isMobile ? 120 : 250);
+          }, 600);
         }
       };
 

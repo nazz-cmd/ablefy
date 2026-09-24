@@ -650,7 +650,7 @@ export const UniversalStudio: React.FC = () => {
 
           {/* Persistent Audio Playback Controller (when text is present) */}
           {textContent.trim() && (
-            <div className="sticky bottom-16 lg:bottom-4 z-30 rounded-2xl bg-white/95 dark:bg-slate-900/95 backdrop-blur-md border border-slate-200/90 dark:border-slate-800 p-3 sm:p-4 shadow-xl transition-all w-full max-w-full overflow-hidden">
+            <div className="sticky bottom-20 lg:bottom-4 z-30 rounded-2xl bg-white/95 dark:bg-slate-900/95 backdrop-blur-md border border-slate-200/90 dark:border-slate-800 p-3 sm:p-4 shadow-xl transition-all w-full max-w-full overflow-hidden">
               <div className="flex flex-col md:flex-row md:items-center justify-between gap-3 sm:gap-4">
                 {/* Left: Playback Info & Progress */}
                 <div className="flex items-center gap-3 min-w-0 flex-1">
@@ -697,7 +697,7 @@ export const UniversalStudio: React.FC = () => {
                 </div>
 
                 {/* Right: Sentence Nav Buttons & Speed */}
-                <div className="flex items-center gap-2 shrink-0 justify-end">
+                <div className="flex items-center gap-2 shrink-0 justify-between sm:justify-end w-full sm:w-auto">
                   <div className="flex items-center gap-1">
                     <button
                       onClick={handleSkipBack}

@@ -39,6 +39,7 @@ export const VoiceNavigator: React.FC<VoiceNavigatorProps> = ({ onNavigateTab })
   const [customCommandInput, setCustomCommandInput] = useState<string>('');
 
   const isSpeechSupported = typeof window !== 'undefined' && Boolean((window as any).SpeechRecognition || (window as any).webkitSpeechRecognition);
+  const isMobile = typeof navigator !== 'undefined' && /Android|iPhone|iPad|iPod|Mobile/i.test(navigator.userAgent);
 
   const ROTATING_HINTS = [
     'Katakan: "Buka beranda"',
@@ -89,10 +90,15 @@ export const VoiceNavigator: React.FC<VoiceNavigatorProps> = ({ onNavigateTab })
     return () => clearInterval(interval);
   }, [isListening, liveTranscript, successMessage]);
 
+  const lastSpokenResponseRef = useRef<string>('');
+  const lastSpokenResponseTimeRef = useRef<number>(0);
+
   const dispatchAction = (action: string, payload?: any, label?: string) => {
     lastCommandTimeRef.current = Date.now();
     if (label) {
       setSuccessMessage(label);
+      lastSpokenResponseRef.current = label;
+      lastSpokenResponseTimeRef.current = Date.now();
       if (voiceCues) {
         speakText(label);
       }
@@ -102,8 +108,6 @@ export const VoiceNavigator: React.FC<VoiceNavigatorProps> = ({ onNavigateTab })
     }
     window.dispatchEvent(new CustomEvent('ablefy-action', { detail: { action, payload } }));
   };
-
-  const lastSpokenResponseRef = useRef<string>('');
 
   /**
    * Smart Semantic UI Clicker: Finds visible interactive buttons, links, or inputs
@@ -190,14 +194,12 @@ export const VoiceNavigator: React.FC<VoiceNavigatorProps> = ({ onNavigateTab })
   const processCommand = (phrase: string): boolean => {
     const phraseLower = phrase.toLowerCase().trim();
 
-    // 1. Two-way echo suppression: filter audio feedback from Ablefy's own speakers
-    if (lastSpokenResponseRef.current) {
+    // 1. Two-way echo suppression: filter audio feedback ONLY if Ablefy is currently speaking right now
+    const now = Date.now();
+    const isCurrentlySpeaking = isSpeaking || (now - lastSpokenResponseTimeRef.current < 1800);
+    if (isCurrentlySpeaking && lastSpokenResponseRef.current) {
       const spokenLower = lastSpokenResponseRef.current.toLowerCase();
-      if (
-        phraseLower.includes(spokenLower) ||
-        spokenLower.includes(phraseLower) ||
-        (isSpeaking && spokenLower.split(' ').some((w) => w.length > 3 && phraseLower.includes(w)))
-      ) {
+      if (phraseLower === spokenLower || (phraseLower.length > 5 && spokenLower.includes(phraseLower))) {
         return false;
       }
     }
@@ -263,8 +265,6 @@ export const VoiceNavigator: React.FC<VoiceNavigatorProps> = ({ onNavigateTab })
       return;
     }
 
-    const isMobile = typeof navigator !== 'undefined' && /Android|iPhone|iPad|iPod|Mobile/i.test(navigator.userAgent);
-
     // Completely abort and unbind previous instance to prevent deadlocks and leaks
     if (recognitionRef.current) {
       try {
@@ -279,9 +279,8 @@ export const VoiceNavigator: React.FC<VoiceNavigatorProps> = ({ onNavigateTab })
 
     try {
       const recognition = new SpeechAPI();
-      // On mobile (especially Android Chrome), continuous: true causes internal failure or freezes without firing onresult
-      // (Chromium bug #1157218). On mobile, continuous MUST be false with clean auto-reconnect on onend.
-      recognition.continuous = !isMobile;
+      // Keep continuous listening active so Android does not terminate prematurely
+      recognition.continuous = true;
       recognition.interimResults = true;
       recognition.lang = 'id-ID';
       recognition.maxAlternatives = 1;
@@ -356,7 +355,7 @@ export const VoiceNavigator: React.FC<VoiceNavigatorProps> = ({ onNavigateTab })
         }
 
         const now = Date.now();
-        if (now - lastCommandTimeRef.current < 800) return;
+        if (now - lastCommandTimeRef.current < 600) return;
 
         const isCommand = processCommand(activeText);
         if (isCommand) {
@@ -388,13 +387,30 @@ export const VoiceNavigator: React.FC<VoiceNavigatorProps> = ({ onNavigateTab })
           }));
         }
 
-        if (voiceNavActiveRef.current && !permissionErrorRef.current && typeof document !== 'undefined' && document.visibilityState !== 'hidden') {
-          clearTimeout(restartTimeoutRef.current);
-          restartTimeoutRef.current = setTimeout(() => {
-            if (voiceNavActiveRef.current && !permissionErrorRef.current) {
-              startRecognition();
+        // On desktop or when recording in lecture: auto-restart seamlessly
+        // On mobile normal voice nav: do NOT rapid-fire beeps when idle.
+        const shouldAutoRestart = voiceNavActiveRef.current && !permissionErrorRef.current && typeof document !== 'undefined' && document.visibilityState !== 'hidden';
+
+        if (shouldAutoRestart) {
+          if (!isMobile || isLiveTranscribingRef.current) {
+            clearTimeout(restartTimeoutRef.current);
+            restartTimeoutRef.current = setTimeout(() => {
+              if (voiceNavActiveRef.current && !permissionErrorRef.current) {
+                startRecognition();
+              }
+            }, 600);
+          } else {
+            // On mobile: keep listening window open for consecutive commands if user spoke recently
+            const timeSinceLastCommand = Date.now() - lastCommandTimeRef.current;
+            if (timeSinceLastCommand < 3500) {
+              clearTimeout(restartTimeoutRef.current);
+              restartTimeoutRef.current = setTimeout(() => {
+                if (voiceNavActiveRef.current && !permissionErrorRef.current) {
+                  startRecognition();
+                }
+              }, 600);
             }
-          }, isMobile ? 120 : 300);
+          }
         }
       };
 
@@ -411,10 +427,20 @@ export const VoiceNavigator: React.FC<VoiceNavigatorProps> = ({ onNavigateTab })
     }
   };
 
-  const requestMicrophoneAccess = () => {
+  const toggleListening = () => {
     setPermissionError(null);
-    // Directly start speech recognition so browser natively prompts without destroying mic hardware tracks
-    startRecognition();
+    if (isListening && recognitionRef.current) {
+      try {
+        recognitionRef.current.abort();
+      } catch (_) {}
+      setIsListening(false);
+    } else {
+      startRecognition();
+    }
+  };
+
+  const requestMicrophoneAccess = () => {
+    toggleListening();
   };
 
   // Re-engage voice recognition automatically when mobile app returns to foreground
@@ -574,9 +600,9 @@ export const VoiceNavigator: React.FC<VoiceNavigatorProps> = ({ onNavigateTab })
       }`}>
         {/* Glowing Animated Microphone Orb */}
         <button
-          onClick={requestMicrophoneAccess}
+          onClick={toggleListening}
           className="relative flex items-center justify-center shrink-0 w-8 h-8 rounded-full bg-gradient-to-tr from-blue-600 via-indigo-600 to-cyan-400 text-white shadow-md active:scale-95 transition-transform"
-          title="Klik untuk menyambungkan mikrofon"
+          title={isListening ? "Klik untuk jeda mendengar" : "Klik untuk bicara"}
         >
           {isListening && (
             <span className={`absolute -inset-1 rounded-full ${
@@ -589,12 +615,18 @@ export const VoiceNavigator: React.FC<VoiceNavigatorProps> = ({ onNavigateTab })
         </button>
 
         {/* Dynamic Center Stage: Living animations & zero text clutter */}
-        <div className="min-w-0 pr-1">
+        <div
+          onClick={!isListening ? toggleListening : undefined}
+          className={`min-w-0 pr-1 ${!isListening ? 'cursor-pointer' : ''}`}
+        >
           {!isSpeechSupported ? (
             <div className="flex items-center gap-2 text-xs text-amber-300">
               <span className="truncate max-w-[125px] sm:max-w-[170px]">Mode Aksi Suara</span>
               <button
-                onClick={() => setShowHelp(true)}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setShowHelp(true);
+                }}
                 className="px-2.5 py-0.5 rounded-full bg-amber-400 hover:bg-amber-300 text-slate-950 text-[10px] font-bold shrink-0 transition shadow-xs"
               >
                 Pilih Aksi
@@ -604,7 +636,10 @@ export const VoiceNavigator: React.FC<VoiceNavigatorProps> = ({ onNavigateTab })
             <div className="flex items-center gap-2 text-xs text-rose-300">
               <span className="truncate max-w-[140px] sm:max-w-[180px]">Izin mikrofon diperlukan</span>
               <button
-                onClick={requestMicrophoneAccess}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  startRecognition();
+                }}
                 className="px-2.5 py-0.5 rounded-full bg-rose-600 hover:bg-rose-500 text-white text-[10px] font-bold shrink-0 transition"
               >
                 Izinkan
@@ -631,7 +666,10 @@ export const VoiceNavigator: React.FC<VoiceNavigatorProps> = ({ onNavigateTab })
                 <span>Merekam Transkrip</span>
               </span>
               <button
-                onClick={() => processCommand('hentikan transkrip')}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  processCommand('hentikan transkrip');
+                }}
                 className="px-2.5 py-0.5 bg-rose-600 hover:bg-rose-500 text-white font-bold rounded-full text-[10px] transition active:scale-95 shadow-xs"
               >
                 Berhenti
@@ -649,7 +687,7 @@ export const VoiceNavigator: React.FC<VoiceNavigatorProps> = ({ onNavigateTab })
                 variant="cyan"
               />
               <span className="text-[11px] text-slate-300 font-medium transition-opacity duration-300 truncate max-w-[130px] sm:max-w-[170px]">
-                {isListening ? (typeof navigator !== 'undefined' && /Android|iPhone|iPad|iPod|Mobile/i.test(navigator.userAgent) ? 'Mendengarkan...' : ROTATING_HINTS[hintIndex]) : 'Menghubungkan...'}
+                {isListening ? (isMobile ? 'Mendengarkan...' : ROTATING_HINTS[hintIndex]) : 'Ketuk untuk bicara'}
               </span>
             </div>
           )}
