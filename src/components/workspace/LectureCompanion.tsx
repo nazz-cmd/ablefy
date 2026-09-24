@@ -1246,7 +1246,7 @@ export const LectureCompanion: React.FC = () => {
         </div>
 
         {/* Primary Action Button: Mulai Bicara / Hentikan Perekaman */}
-        {sourceMode === 'mic' && (
+        {sourceMode === 'mic' && (isListening || bubbles.length > 0) && (
           <div className="flex items-center gap-2">
             <button
               onClick={toggleRecording}
@@ -1264,7 +1264,7 @@ export const LectureCompanion: React.FC = () => {
               ) : (
                 <>
                   <Mic className="w-3.5 h-3.5" />
-                  <span>Mulai Rekam Suara</span>
+                  <span>Lanjut Rekam</span>
                 </>
               )}
             </button>

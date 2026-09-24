@@ -1,7 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import {
   Mic,
-  Square,
   Type,
   Menu,
   FileText,
@@ -20,12 +19,12 @@ interface TopAppBarProps {
 export const TopAppBar: React.FC<TopAppBarProps> = ({
   activeTab,
   onOpenMobileSidebar,
-  onNavigateTab,
 }) => {
   const {
     fontScale,
     setFontScale,
-    speakCue,
+    voiceNavActive,
+    setVoiceNavActive,
   } = useAccessibility();
 
   const [isRecording, setIsRecording] = useState<boolean>(false);
@@ -67,21 +66,6 @@ export const TopAppBar: React.FC<TopAppBarProps> = ({
   const moduleInfo = getModuleInfo();
   const ModuleIcon = moduleInfo.icon;
 
-  const handleStartTranscription = () => {
-    if (onNavigateTab) {
-      onNavigateTab('lecture');
-      speakCue('Memulai Transkripsi Wicara Live');
-    }
-  };
-
-  const handleToggleRecording = () => {
-    if (isRecording) {
-      window.dispatchEvent(new CustomEvent('ablefy-action', { detail: { action: 'STOP_RECORDING' } }));
-    } else {
-      window.dispatchEvent(new CustomEvent('ablefy-action', { detail: { action: 'START_RECORDING' } }));
-    }
-  };
-
   return (
     <header className="sticky top-0 z-30 bg-white/95 dark:bg-slate-950/95 backdrop-blur-md border-b border-slate-200/80 dark:border-slate-800 h-14 px-3 sm:px-6 flex items-center justify-between gap-2 transition-colors w-full max-w-full overflow-hidden">
       {/* Left: Mobile Hamburger & Page Title */}
@@ -107,41 +91,30 @@ export const TopAppBar: React.FC<TopAppBarProps> = ({
 
       {/* Right: Primary Action & Standard Font Scaler */}
       <div className="flex items-center gap-1.5 sm:gap-3 shrink-0">
-        {/* Quick Action Button: Transkripsi / Bicara Live on ALL screens */}
-        {activeTab !== 'lecture' ? (
-          <button
-            onClick={handleStartTranscription}
-            className="flex items-center gap-1 sm:gap-2 px-2.5 sm:px-3 py-1.5 sm:py-2 rounded-full bg-blue-600 hover:bg-blue-700 active:scale-95 text-white text-[10px] sm:text-xs font-bold shadow-xs transition-all shrink-0"
-            title="Mulai Transkripsi Suara Langsung (Hotkey 1)"
-          >
-            <span className="w-1.5 h-1.5 sm:w-2 sm:h-2 rounded-full bg-rose-400 animate-pulse shrink-0" />
-            <Mic className="w-3.5 h-3.5 shrink-0" />
-            <span className="hidden sm:inline">Transkripsi Live</span>
-            <span className="sm:hidden font-bold">Transkrip</span>
-          </button>
+        {/* Quick Voice Navigator Trigger (or recording status when on lecture) */}
+        {activeTab === 'lecture' ? (
+          isRecording ? (
+            <div className="flex items-center gap-1.5 px-2.5 sm:px-3 py-1.5 rounded-full bg-rose-50 dark:bg-rose-950/60 border border-rose-200 dark:border-rose-900/60 text-rose-600 dark:text-rose-400 text-[10px] sm:text-xs font-bold shrink-0 shadow-2xs">
+              <span className="w-2 h-2 rounded-full bg-rose-500 animate-ping" />
+              <span>Merekam Transkrip</span>
+            </div>
+          ) : null
         ) : (
           <button
-            onClick={handleToggleRecording}
-            className={`flex items-center gap-1 sm:gap-2 px-2.5 sm:px-3 py-1.5 sm:py-2 rounded-full active:scale-95 text-white text-[10px] sm:text-xs font-bold shadow-xs transition-all shrink-0 ${
-              isRecording
-                ? 'bg-rose-600 hover:bg-rose-700 animate-pulse ring-2 ring-rose-400/40'
-                : 'bg-blue-600 hover:bg-blue-700'
+            onClick={() => {
+              setVoiceNavActive(true);
+              window.dispatchEvent(new CustomEvent('ablefy-toggle-voice-nav'));
+            }}
+            className={`flex items-center gap-1 sm:gap-2 px-2.5 sm:px-3 py-1.5 sm:py-2 rounded-full border text-[10px] sm:text-xs font-bold shadow-xs transition-all shrink-0 active:scale-95 ${
+              voiceNavActive
+                ? 'bg-slate-900 dark:bg-slate-800 text-cyan-300 border-cyan-500/50 shadow-[0_0_12px_rgba(6,182,212,0.25)]'
+                : 'bg-white dark:bg-slate-900 text-slate-700 dark:text-slate-300 border-slate-200 dark:border-slate-800 hover:bg-slate-50'
             }`}
-            title={isRecording ? "Hentikan perekaman wicara" : "Mulai rekam pembicaraan sekarang"}
+            title="Nyalakan Kontrol Navigasi Suara (V)"
           >
-            {isRecording ? (
-              <>
-                <Square className="w-3.5 h-3.5 fill-current shrink-0" />
-                <span>Hentikan</span>
-              </>
-            ) : (
-              <>
-                <span className="w-1.5 h-1.5 sm:w-2 sm:h-2 rounded-full bg-rose-400 animate-pulse shrink-0" />
-                <Mic className="w-3.5 h-3.5 shrink-0" />
-                <span className="hidden sm:inline">Mulai Bicara</span>
-                <span className="sm:hidden font-bold">Bicara Live</span>
-              </>
-            )}
+            <Mic className="w-3.5 h-3.5 text-cyan-400 shrink-0" />
+            <span className="hidden sm:inline">Navigasi Suara</span>
+            <span className="sm:hidden font-bold">Suara</span>
           </button>
         )}
 

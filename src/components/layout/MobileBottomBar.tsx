@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Home, Mic, FileText, BookOpen, Square } from 'lucide-react';
+import { Home, Radio, FileText, BookOpen, Square } from 'lucide-react';
 import { useAccessibility } from '../../context/AccessibilityContext';
 
 interface MobileBottomBarProps {
@@ -28,22 +28,14 @@ export const MobileBottomBar: React.FC<MobileBottomBarProps> = ({
     { id: 'studio', label: 'Pembaca', icon: FileText, highlight: false },
     {
       id: 'lecture',
-      label: isRecording ? 'Merekam...' : 'Transkrip Live',
-      icon: isRecording ? Square : Mic,
-      highlight: true
+      label: isRecording ? 'Merekam...' : 'Transkripsi',
+      icon: isRecording ? Square : Radio,
+      highlight: isRecording
     },
     { id: 'bisindo', label: 'Isyarat', icon: BookOpen, highlight: false },
   ];
 
   const handleNav = (id: string, label: string) => {
-    if (activeTab === id && id === 'lecture') {
-      if (isRecording) {
-        window.dispatchEvent(new CustomEvent('ablefy-action', { detail: { action: 'STOP_RECORDING' } }));
-      } else {
-        window.dispatchEvent(new CustomEvent('ablefy-action', { detail: { action: 'START_RECORDING' } }));
-      }
-      return;
-    }
     setActiveTab(id);
     speakCue(`Membuka menu ${label}`, undefined, true);
   };

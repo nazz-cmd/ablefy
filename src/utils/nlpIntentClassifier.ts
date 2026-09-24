@@ -172,10 +172,10 @@ export const classifyIndonesianVoiceIntent = (
     };
   }
 
-  // Start Recording: "mulai transkrip", "rekam suara", "bicara live", "mau bicara", "aktifkan mikrofon", "mulai rekam"
+  // Start Recording: "mulai transkrip", "rekam suara", "bicara live", "aktifkan mikrofon", "mulai rekam"
   if (
-    (clean.includes('mulai') || clean.includes('start') || clean.includes('aktifkan') || clean.includes('ambil') || clean.includes('klik') || clean.includes('tekan') || clean.includes('pencet') || clean.includes('bikin') || clean.includes('nyalakan')) &&
-    (clean.includes('transkrip') || clean.includes('rekam') || clean.includes('suara') || clean.includes('mikrofon') || clean.includes('mic') || clean.includes('wicara') || clean.includes('bicara'))
+    (clean.includes('mulai') || clean.includes('start') || clean.includes('aktifkan') || clean.includes('nyalakan')) &&
+    (clean.includes('transkrip') || clean.includes('rekam') || clean.includes('suara') || clean.includes('mikrofon') || clean.includes('mic') || clean.includes('wicara') || clean.includes('bicara live'))
   ) {
     return {
       action: 'START_RECORDING',
@@ -190,6 +190,7 @@ export const classifyIndonesianVoiceIntent = (
     clean === 'mulai merekam' ||
     clean === 'mulai transkrip' ||
     clean === 'mulai bicara' ||
+    clean === 'bicara live' ||
     clean === 'catat suara' ||
     clean === 'catat kuliah' ||
     clean === 'mulai catat' ||
@@ -495,9 +496,10 @@ export const classifyIndonesianVoiceIntent = (
     clean.includes('transkrip') ||
     clean.includes('transkripsi') ||
     clean.includes('wicara') ||
-    clean.includes('bicara') ||
-    clean.includes('ngomong') ||
     clean.includes('kuliah') ||
+    clean.includes('bicara live') ||
+    clean === 'bicara' ||
+    clean === 'buka bicara' ||
     clean === 'satu' ||
     clean === 'nomor satu'
   ) {

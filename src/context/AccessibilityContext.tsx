@@ -103,7 +103,12 @@ export const AccessibilityProvider: React.FC<{ children: ReactNode }> = ({ child
   const [largeTargetMode, setLargeTargetModeState] = useState<boolean>(false);
 
   const [voiceNavActive, setVoiceNavActiveState] = useState<boolean>(() => {
-    return localStorage.getItem('ablefy_voice_nav') === 'true';
+    try {
+      const saved = localStorage.getItem('ablefy_voice_nav');
+      return saved !== null ? saved === 'true' : true;
+    } catch {
+      return true;
+    }
   });
 
   const [isShortcutsModalOpen, setIsShortcutsModalOpen] = useState<boolean>(false);

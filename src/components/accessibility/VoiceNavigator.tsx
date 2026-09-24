@@ -54,6 +54,7 @@ export const VoiceNavigator: React.FC<VoiceNavigatorProps> = ({ onNavigateTab })
   const voiceNavActiveRef = useRef<boolean>(voiceNavActive);
   const permissionErrorRef = useRef<string | null>(null);
   const lastCommandTimeRef = useRef<number>(0);
+  const listeningStartTimeRef = useRef<number>(0);
   const restartTimeoutRef = useRef<any>(null);
   const isLiveTranscribingRef = useRef<boolean>(false);
   const isListeningRef = useRef<boolean>(false);
@@ -64,6 +65,20 @@ export const VoiceNavigator: React.FC<VoiceNavigatorProps> = ({ onNavigateTab })
   permissionErrorRef.current = permissionError;
   isLiveTranscribingRef.current = isLiveTranscribing;
   isListeningRef.current = isListening;
+
+  // Listen for global voice nav toggle triggers (e.g. from TopAppBar or hotkeys)
+  useEffect(() => {
+    const handleToggleVoiceNav = () => {
+      setVoiceNavActive(true);
+      voiceNavActiveRef.current = true;
+      if (!isListeningRef.current) {
+        listeningStartTimeRef.current = Date.now();
+        startRecognition();
+      }
+    };
+    window.addEventListener('ablefy-toggle-voice-nav', handleToggleVoiceNav);
+    return () => window.removeEventListener('ablefy-toggle-voice-nav', handleToggleVoiceNav);
+  }, []);
 
   // Listen to live lecture recording status to prevent mic conflicts
   useEffect(() => {
@@ -400,21 +415,29 @@ export const VoiceNavigator: React.FC<VoiceNavigatorProps> = ({ onNavigateTab })
           pendingCommandRef.current = '';
         }
 
-        // On mobile: cleanly return to quiet standby ("Ketuk untuk bicara")
-        // This avoids Android Chrome beeps and headless restart "not-allowed" rejections!
-        if (isMobile) {
+        // If user manually stopped listening or page hidden, cleanly stop
+        if (!isListeningRef.current || !voiceNavActiveRef.current || (typeof document !== 'undefined' && document.visibilityState === 'hidden')) {
           setIsListening(false);
           isListeningRef.current = false;
           return;
         }
 
-        // On desktop: auto-restart seamlessly when Voice Navigator is active
-        const shouldAutoRestart = voiceNavActiveRef.current && !permissionErrorRef.current && typeof document !== 'undefined' && document.visibilityState !== 'hidden';
+        // If a command was just executed, on mobile we return to standby
+        const justExecutedCommand = Date.now() - lastCommandTimeRef.current < 2500;
+        if (isMobile && justExecutedCommand) {
+          setIsListening(false);
+          isListeningRef.current = false;
+          return;
+        }
 
-        if (shouldAutoRestart && !isLiveTranscribingRef.current) {
+        // If within active listening window (or on desktop continuously), seamlessly restart recognition
+        const withinActiveWindow = !isMobile || (Date.now() - listeningStartTimeRef.current < 15000);
+        const shouldRestart = voiceNavActiveRef.current && !permissionErrorRef.current && !isLiveTranscribingRef.current && withinActiveWindow;
+
+        if (shouldRestart) {
           clearTimeout(restartTimeoutRef.current);
           restartTimeoutRef.current = setTimeout(() => {
-            if (voiceNavActiveRef.current && !permissionErrorRef.current && !isLiveTranscribingRef.current) {
+            if (voiceNavActiveRef.current && isListeningRef.current && !permissionErrorRef.current && !isLiveTranscribingRef.current) {
               try {
                 startRecognition();
               } catch (_) {
@@ -429,6 +452,7 @@ export const VoiceNavigator: React.FC<VoiceNavigatorProps> = ({ onNavigateTab })
         }
       };
 
+      listeningStartTimeRef.current = Date.now();
       recognition.start();
       recognitionRef.current = recognition;
     } catch (err) {
@@ -456,7 +480,7 @@ export const VoiceNavigator: React.FC<VoiceNavigatorProps> = ({ onNavigateTab })
       isListeningRef.current = false;
       speakCue('Jeda mendengar', undefined, true);
     } else {
-      speakCue('Mendengarkan...', undefined, true);
+      listeningStartTimeRef.current = Date.now();
       startRecognition();
     }
   };
@@ -513,7 +537,9 @@ export const VoiceNavigator: React.FC<VoiceNavigatorProps> = ({ onNavigateTab })
         <button
           onClick={() => {
             setVoiceNavActive(true);
-            speakCue('Navigasi suara diaktifkan');
+            voiceNavActiveRef.current = true;
+            listeningStartTimeRef.current = Date.now();
+            startRecognition();
           }}
           className="flex items-center gap-2 px-3 py-2 sm:py-2.5 rounded-full bg-slate-900/95 hover:bg-slate-950 text-white border border-slate-700/80 shadow-2xl backdrop-blur-md active:scale-95 transition-all group"
           title="Nyalakan Kontrol Suara (V)"
