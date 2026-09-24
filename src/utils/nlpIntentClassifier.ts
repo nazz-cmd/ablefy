@@ -187,18 +187,14 @@ export const classifyIndonesianVoiceIntent = (
   if (
     clean === 'rekam' ||
     clean === 'rekam suara' ||
-    clean === 'bicara' ||
-    clean === 'bicara live' ||
-    clean === 'bicara langsung' ||
-    clean === 'ngomong' ||
     clean === 'mulai merekam' ||
     clean === 'mulai transkrip' ||
     clean === 'mulai bicara' ||
     clean === 'catat suara' ||
     clean === 'catat kuliah' ||
-    clean === 'transkripsikan' ||
-    clean === 'transkrip' ||
-    clean === 'transkripsi'
+    clean === 'mulai catat' ||
+    clean === 'start recording' ||
+    clean === 'start transcribe'
   ) {
     return {
       action: 'START_RECORDING',

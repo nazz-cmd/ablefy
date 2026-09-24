@@ -587,8 +587,8 @@ export const SignHub: React.FC = () => {
           }`}
           aria-label="Panel Alat & Panduan Isyarat"
         >
-          {/* DESKTOP VIEW: Collapsible Box Shell */}
-          <div className="hidden lg:flex flex-col bg-white dark:bg-slate-900 rounded-2xl border border-slate-200/90 dark:border-slate-800 shadow-xs sticky top-20 h-fit max-h-[calc(100vh-6.5rem)] overflow-hidden">
+          {/* UNIFIED VIEW: Responsive Box Shell on mobile & desktop */}
+          <div className="flex flex-col bg-white dark:bg-slate-900 rounded-2xl border border-slate-200/90 dark:border-slate-800 shadow-xs lg:sticky lg:top-20 h-fit max-h-none lg:max-h-[calc(100vh-6.5rem)] overflow-hidden">
             {/* Header: Toggle button is right on the box */}
             <div
               className={`shrink-0 border-b border-slate-100 dark:border-slate-800/80 transition-all ${
@@ -626,10 +626,10 @@ export const SignHub: React.FC = () => {
               )}
             </div>
 
-            {/* Desktop Body */}
+            {/* Desktop & Mobile Body */}
             <div className="flex-1 overflow-y-auto overflow-x-hidden [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden">
               {isRightPanelOpen ? (
-                <div className="w-[330px] xl:w-[350px] p-4 space-y-4 animate-in fade-in duration-200">
+                <div className="w-full lg:w-[330px] xl:w-[350px] p-4 space-y-4 animate-in fade-in duration-200">
                   {/* Mode Navigation Switcher (2 Tabs Only) */}
                   <div className="space-y-1.5">
                     <span className="text-xs font-bold text-slate-800 dark:text-white block">

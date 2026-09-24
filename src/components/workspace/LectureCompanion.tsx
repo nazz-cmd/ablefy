@@ -21,6 +21,7 @@ import {
   Radio,
   PanelRightClose,
   PanelRightOpen,
+  Trash2,
 } from 'lucide-react';
 import { useAccessibility } from '../../context/AccessibilityContext';
 import { type VideoCaption, normalizeVideoCaptions, BUSINESS_VIDEO_CAPTIONS } from '../../data/videoCaptions';
@@ -1216,6 +1217,90 @@ export const LectureCompanion: React.FC = () => {
 
   return (
     <div className="w-full max-w-[1536px] mx-auto px-3 sm:px-6 lg:px-8 py-6 pb-20 overflow-x-hidden">
+      {/* Sleek Mobile & Desktop Top Control Bar: Fast Mode Switcher & 1-Tap Record Trigger */}
+      <div className="mb-5 p-3 sm:p-4 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200/90 dark:border-slate-800 shadow-xs flex flex-wrap items-center justify-between gap-3">
+        {/* Source Mode Switcher Pills */}
+        <div className="flex items-center gap-1.5 p-1 bg-slate-100 dark:bg-slate-800/80 rounded-xl overflow-x-auto max-w-full">
+          {[
+            { id: 'mic', label: 'Mikrofon Langsung', icon: Mic },
+            { id: 'audio', label: 'Rekaman Audio', icon: Music },
+            { id: 'video', label: 'Video YouTube', icon: Video },
+          ].map((mode) => {
+            const Icon = mode.icon;
+            const isCurrent = sourceMode === mode.id;
+            return (
+              <button
+                key={mode.id}
+                onClick={() => handleSwitchSourceMode(mode.id as any)}
+                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition shrink-0 active:scale-95 ${
+                  isCurrent
+                    ? 'bg-blue-600 text-white shadow-xs'
+                    : 'text-slate-600 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white hover:bg-slate-200/60 dark:hover:bg-slate-700/60'
+                }`}
+              >
+                <Icon className="w-3.5 h-3.5" />
+                <span>{mode.label}</span>
+              </button>
+            );
+          })}
+        </div>
+
+        {/* Primary Action Button: Mulai Bicara / Hentikan Perekaman */}
+        {sourceMode === 'mic' && (
+          <div className="flex items-center gap-2">
+            <button
+              onClick={toggleRecording}
+              className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold transition shadow-xs active:scale-95 ${
+                isListening
+                  ? 'bg-rose-600 hover:bg-rose-700 text-white animate-pulse ring-2 ring-rose-400/30'
+                  : 'bg-blue-600 hover:bg-blue-700 text-white'
+              }`}
+            >
+              {isListening ? (
+                <>
+                  <Square className="w-3.5 h-3.5 fill-current" />
+                  <span>Hentikan Rekam ({formatTimer(recordingSeconds)})</span>
+                </>
+              ) : (
+                <>
+                  <Mic className="w-3.5 h-3.5" />
+                  <span>Mulai Rekam Suara</span>
+                </>
+              )}
+            </button>
+
+            {bubbles.length > 0 && (
+              <div className="flex items-center gap-1">
+                <button
+                  onClick={() => handleCopyAll(bubbles)}
+                  className="p-2 rounded-xl border border-slate-200 dark:border-slate-700 hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-600 dark:text-slate-300 text-xs transition"
+                  title="Salin Seluruh Naskah"
+                  aria-label="Salin Seluruh Naskah"
+                >
+                  <Copy className="w-3.5 h-3.5" />
+                </button>
+                <button
+                  onClick={() => handleExportTxt(bubbles)}
+                  className="p-2 rounded-xl border border-slate-200 dark:border-slate-700 hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-600 dark:text-slate-300 text-xs transition"
+                  title="Unduh Berkas Teks"
+                  aria-label="Unduh Berkas Teks"
+                >
+                  <Download className="w-3.5 h-3.5" />
+                </button>
+                <button
+                  onClick={handleClearMicBubbles}
+                  className="p-2 rounded-xl border border-slate-200 dark:border-slate-700 hover:bg-rose-50 hover:text-rose-600 dark:hover:bg-rose-950/40 text-slate-600 dark:text-slate-300 text-xs transition"
+                  title="Bersihkan Transkrip"
+                  aria-label="Bersihkan Transkrip"
+                >
+                  <Trash2 className="w-3.5 h-3.5" />
+                </button>
+              </div>
+            )}
+          </div>
+        )}
+      </div>
+
       {/* 2-Column Responsive Layout Matching HomeWorkspace & Otter.ai */}
       <div className="flex flex-col lg:flex-row gap-6 lg:gap-8 items-start w-full min-w-0">
 

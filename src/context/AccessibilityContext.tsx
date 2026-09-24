@@ -63,7 +63,7 @@ interface AccessibilityContextType {
   setGoogleApiKey: (key: string) => void;
   isGoogleTtsConfigured: boolean;
   speakText: (text: string, personaOverride?: VoicePersona) => void;
-  speakCue: (text: string, personaOverride?: VoicePersona) => void;
+  speakCue: (text: string, personaOverride?: VoicePersona, force?: boolean) => void;
   stopSpeech: () => void;
   isSpeaking: boolean;
   resetToDefault: () => void;
@@ -359,8 +359,8 @@ export const AccessibilityProvider: React.FC<{ children: ReactNode }> = ({ child
   };
 
   // Safe voice cue helper: Instant zero-latency speech for UI navigation cues (0ms delay)
-  const speakCue = (text: string, _personaOverride?: VoicePersona) => {
-    if (!voiceCuesRef.current) return;
+  const speakCue = (text: string, _personaOverride?: VoicePersona, force?: boolean) => {
+    if (!force && !voiceCuesRef.current) return;
     speakInstantCue(text);
   };
 

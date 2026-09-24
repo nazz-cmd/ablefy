@@ -1,6 +1,7 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   Mic,
+  Square,
   Type,
   Menu,
   FileText,
@@ -26,6 +27,17 @@ export const TopAppBar: React.FC<TopAppBarProps> = ({
     setFontScale,
     speakCue,
   } = useAccessibility();
+
+  const [isRecording, setIsRecording] = useState<boolean>(false);
+
+  useEffect(() => {
+    const handleRecStatus = (e: Event) => {
+      const customEvent = e as CustomEvent<{ isRecording: boolean }>;
+      setIsRecording(!!customEvent.detail?.isRecording);
+    };
+    window.addEventListener('ablefy-recording-status', handleRecStatus);
+    return () => window.removeEventListener('ablefy-recording-status', handleRecStatus);
+  }, []);
 
   const getModuleInfo = () => {
     switch (activeTab) {
@@ -62,6 +74,14 @@ export const TopAppBar: React.FC<TopAppBarProps> = ({
     }
   };
 
+  const handleToggleRecording = () => {
+    if (isRecording) {
+      window.dispatchEvent(new CustomEvent('ablefy-action', { detail: { action: 'STOP_RECORDING' } }));
+    } else {
+      window.dispatchEvent(new CustomEvent('ablefy-action', { detail: { action: 'START_RECORDING' } }));
+    }
+  };
+
   return (
     <header className="sticky top-0 z-30 bg-white/95 dark:bg-slate-950/95 backdrop-blur-md border-b border-slate-200/80 dark:border-slate-800 h-14 px-3 sm:px-6 flex items-center justify-between gap-2 transition-colors w-full max-w-full overflow-hidden">
       {/* Left: Mobile Hamburger & Page Title */}
@@ -87,8 +107,8 @@ export const TopAppBar: React.FC<TopAppBarProps> = ({
 
       {/* Right: Primary Action & Standard Font Scaler */}
       <div className="flex items-center gap-1.5 sm:gap-3 shrink-0">
-        {/* Quick Action Button: 🎙️ Transkripsi Live (Always available when not already on lecture tab) */}
-        {activeTab !== 'lecture' && (
+        {/* Quick Action Button: Transkripsi / Bicara Live on ALL screens */}
+        {activeTab !== 'lecture' ? (
           <button
             onClick={handleStartTranscription}
             className="flex items-center gap-1 sm:gap-2 px-2.5 sm:px-3 py-1.5 sm:py-2 rounded-full bg-blue-600 hover:bg-blue-700 active:scale-95 text-white text-[10px] sm:text-xs font-bold shadow-xs transition-all shrink-0"
@@ -98,6 +118,30 @@ export const TopAppBar: React.FC<TopAppBarProps> = ({
             <Mic className="w-3.5 h-3.5 shrink-0" />
             <span className="hidden sm:inline">Transkripsi Live</span>
             <span className="sm:hidden font-bold">Transkrip</span>
+          </button>
+        ) : (
+          <button
+            onClick={handleToggleRecording}
+            className={`flex items-center gap-1 sm:gap-2 px-2.5 sm:px-3 py-1.5 sm:py-2 rounded-full active:scale-95 text-white text-[10px] sm:text-xs font-bold shadow-xs transition-all shrink-0 ${
+              isRecording
+                ? 'bg-rose-600 hover:bg-rose-700 animate-pulse ring-2 ring-rose-400/40'
+                : 'bg-blue-600 hover:bg-blue-700'
+            }`}
+            title={isRecording ? "Hentikan perekaman wicara" : "Mulai rekam pembicaraan sekarang"}
+          >
+            {isRecording ? (
+              <>
+                <Square className="w-3.5 h-3.5 fill-current shrink-0" />
+                <span>Hentikan</span>
+              </>
+            ) : (
+              <>
+                <span className="w-1.5 h-1.5 sm:w-2 sm:h-2 rounded-full bg-rose-400 animate-pulse shrink-0" />
+                <Mic className="w-3.5 h-3.5 shrink-0" />
+                <span className="hidden sm:inline">Mulai Bicara</span>
+                <span className="sm:hidden font-bold">Bicara Live</span>
+              </>
+            )}
           </button>
         )}
 

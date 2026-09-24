@@ -1,5 +1,5 @@
-import React from 'react';
-import { Home, Mic, FileText, BookOpen } from 'lucide-react';
+import React, { useState, useEffect } from 'react';
+import { Home, Mic, FileText, BookOpen, Square } from 'lucide-react';
 import { useAccessibility } from '../../context/AccessibilityContext';
 
 interface MobileBottomBarProps {
@@ -12,17 +12,40 @@ export const MobileBottomBar: React.FC<MobileBottomBarProps> = ({
   setActiveTab,
 }) => {
   const { speakCue } = useAccessibility();
+  const [isRecording, setIsRecording] = useState<boolean>(false);
+
+  useEffect(() => {
+    const handleRecStatus = (e: Event) => {
+      const customEvent = e as CustomEvent<{ isRecording: boolean }>;
+      setIsRecording(!!customEvent.detail?.isRecording);
+    };
+    window.addEventListener('ablefy-recording-status', handleRecStatus);
+    return () => window.removeEventListener('ablefy-recording-status', handleRecStatus);
+  }, []);
 
   const navItems = [
     { id: 'home', label: 'Beranda', icon: Home, highlight: false },
     { id: 'studio', label: 'Pembaca', icon: FileText, highlight: false },
-    { id: 'lecture', label: 'Transkripsi Live', icon: Mic, highlight: true },
+    {
+      id: 'lecture',
+      label: isRecording ? 'Merekam...' : 'Transkrip Live',
+      icon: isRecording ? Square : Mic,
+      highlight: true
+    },
     { id: 'bisindo', label: 'Isyarat', icon: BookOpen, highlight: false },
   ];
 
   const handleNav = (id: string, label: string) => {
+    if (activeTab === id && id === 'lecture') {
+      if (isRecording) {
+        window.dispatchEvent(new CustomEvent('ablefy-action', { detail: { action: 'STOP_RECORDING' } }));
+      } else {
+        window.dispatchEvent(new CustomEvent('ablefy-action', { detail: { action: 'START_RECORDING' } }));
+      }
+      return;
+    }
     setActiveTab(id);
-    speakCue(`Membuka menu ${label}`);
+    speakCue(`Membuka menu ${label}`, undefined, true);
   };
 
   return (
@@ -42,7 +65,9 @@ export const MobileBottomBar: React.FC<MobileBottomBarProps> = ({
             className={`relative flex flex-col items-center justify-center min-w-[70px] min-h-[48px] rounded-xl px-2 py-1 transition-all active:scale-95 ${
               isActive
                 ? isHighlight
-                  ? 'text-rose-600 dark:text-rose-400 font-extrabold bg-rose-50/90 dark:bg-rose-950/50'
+                  ? isRecording
+                    ? 'text-rose-600 dark:text-rose-400 font-extrabold bg-rose-100/90 dark:bg-rose-950/70 animate-pulse'
+                    : 'text-rose-600 dark:text-rose-400 font-extrabold bg-rose-50/90 dark:bg-rose-950/50'
                   : 'text-blue-600 dark:text-blue-400 font-extrabold bg-blue-50/90 dark:bg-blue-950/50'
                 : 'text-slate-500 dark:text-slate-400 hover:text-slate-800 dark:hover:text-slate-200 font-medium'
             }`}

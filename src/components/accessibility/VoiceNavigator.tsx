@@ -21,7 +21,6 @@ export const VoiceNavigator: React.FC<VoiceNavigatorProps> = ({ onNavigateTab })
     setFontScale,
     setDyslexicMode,
     setReadingRuler,
-    voiceCues,
     setVoiceCues,
     setIsShortcutsModalOpen,
     speakCue,
@@ -107,9 +106,7 @@ export const VoiceNavigator: React.FC<VoiceNavigatorProps> = ({ onNavigateTab })
       setSuccessMessage(label);
       lastSpokenResponseRef.current = label;
       lastSpokenResponseTimeRef.current = Date.now();
-      if (voiceCues) {
-        speakCue(label);
-      }
+      speakCue(label, undefined, true);
       setTimeout(() => {
         setSuccessMessage('');
       }, 3500);
@@ -276,14 +273,37 @@ export const VoiceNavigator: React.FC<VoiceNavigatorProps> = ({ onNavigateTab })
     }
   };
 
-  const startRecognition = () => {
-    if (!voiceNavActiveRef.current || permissionErrorRef.current) return;
+  const startRecognition = async () => {
+    if (!voiceNavActiveRef.current) return;
+
+    // Synchronously clear old error states
+    permissionErrorRef.current = null;
+    setPermissionError(null);
 
     const SpeechAPI = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
     if (!SpeechAPI) {
-      // Browser like Firefox without Web Speech Recognition enabled
       setIsListening(false);
+      isListeningRef.current = false;
+      setShowHelp(true);
+      speakCue('Peramban ini tidak mendukung input suara langsung. Silakan pilih tombol aksi.', undefined, true);
       return;
+    }
+
+    // Proactively prime device OS microphone permissions with immediate sequential release
+    if (typeof navigator !== 'undefined' && navigator.mediaDevices && navigator.mediaDevices.getUserMedia) {
+      try {
+        const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+        stream.getTracks().forEach((track) => track.stop());
+      } catch (err: any) {
+        if (err.name === 'NotAllowedError' || err.name === 'PermissionDeniedError') {
+          const errMsg = 'Akses mikrofon ditolak di peramban Anda. Klik ikon gembok di sebelah URL untuk mengizinkan.';
+          setPermissionError(errMsg);
+          permissionErrorRef.current = errMsg;
+          setIsListening(false);
+          isListeningRef.current = false;
+          return;
+        }
+      }
     }
 
     // Completely abort and unbind previous instance to prevent deadlocks and leaks
@@ -300,8 +320,7 @@ export const VoiceNavigator: React.FC<VoiceNavigatorProps> = ({ onNavigateTab })
 
     try {
       const recognition = new SpeechAPI();
-      // On mobile, continuous MUST be false for reliable utterance recognition on Android Chrome
-      recognition.continuous = !isMobile;
+      recognition.continuous = true;
       recognition.interimResults = true;
       recognition.lang = 'id-ID';
       recognition.maxAlternatives = 1;
@@ -310,6 +329,7 @@ export const VoiceNavigator: React.FC<VoiceNavigatorProps> = ({ onNavigateTab })
         setIsListening(true);
         isListeningRef.current = true;
         setPermissionError(null);
+        permissionErrorRef.current = null;
       };
 
       recognition.onresult = (event: any) => {
@@ -329,12 +349,26 @@ export const VoiceNavigator: React.FC<VoiceNavigatorProps> = ({ onNavigateTab })
         interim = interim.trim();
 
         // 1. Display real-time spoken text preview in glowing cyan
-        const currentSpeech = final || interim;
+        const currentSpeech = (final || interim).trim();
         if (currentSpeech) {
           setLiveTranscript(currentSpeech);
         }
 
-        // 2. When final sentence recognized, execute immediately!
+        // 2. High-speed immediate intent matching:
+        // If current speech already contains a recognized command, execute immediately!
+        if (currentSpeech) {
+          const immediateSuccess = processCommand(currentSpeech);
+          if (immediateSuccess) {
+            clearTimeout(interimCommandTimerRef.current);
+            pendingCommandRef.current = '';
+            setTimeout(() => {
+              setLiveTranscript('');
+            }, 500);
+            return;
+          }
+        }
+
+        // 3. When final sentence recognized, execute immediately!
         if (final) {
           clearTimeout(interimCommandTimerRef.current);
           pendingCommandRef.current = '';
@@ -342,7 +376,7 @@ export const VoiceNavigator: React.FC<VoiceNavigatorProps> = ({ onNavigateTab })
           return;
         }
 
-        // 3. When interim arrives, buffer and auto-promote on speech pause (750ms)
+        // 4. When interim arrives, buffer and auto-promote on speech pause (650ms)
         if (interim) {
           pendingCommandRef.current = interim;
           clearTimeout(interimCommandTimerRef.current);
@@ -351,19 +385,22 @@ export const VoiceNavigator: React.FC<VoiceNavigatorProps> = ({ onNavigateTab })
               executeCommand(pendingCommandRef.current.trim());
               pendingCommandRef.current = '';
             }
-          }, 750);
+          }, 650);
         }
       };
 
       recognition.onerror = (event: any) => {
         if (event.error === 'not-allowed' || event.error === 'service-not-allowed') {
-          setPermissionError('Akses mikrofon diblokir. Klik ikon gembok di sebelah URL browser untuk mengizinkan mikrofon.');
+          // If error happened while listening was not established, report permission blocked
+          if (!isListeningRef.current) {
+            setPermissionError('Akses mikrofon diblokir. Klik ikon gembok di sebelah URL browser untuk mengizinkan mikrofon.');
+            permissionErrorRef.current = 'blocked';
+          }
           setIsListening(false);
           isListeningRef.current = false;
           return;
         }
-        // For benign browser errors ('audio-capture', 'no-speech', 'aborted', 'network'):
-        // Do NOT permanently lock permissionError! onend handles clean seamless restart.
+        // Non-fatal errors ('audio-capture', 'no-speech', 'aborted', 'network') are handled cleanly by onend
       };
 
       recognition.onend = () => {
@@ -380,9 +417,14 @@ export const VoiceNavigator: React.FC<VoiceNavigatorProps> = ({ onNavigateTab })
           clearTimeout(restartTimeoutRef.current);
           restartTimeoutRef.current = setTimeout(() => {
             if (voiceNavActiveRef.current && !permissionErrorRef.current && !isLiveTranscribingRef.current) {
-              startRecognition();
+              try {
+                startRecognition();
+              } catch (_) {
+                setIsListening(false);
+                isListeningRef.current = false;
+              }
             }
-          }, isMobile ? 350 : 250);
+          }, isMobile ? 400 : 250);
         } else {
           setIsListening(false);
           isListeningRef.current = false;
@@ -392,18 +434,21 @@ export const VoiceNavigator: React.FC<VoiceNavigatorProps> = ({ onNavigateTab })
       recognition.start();
       recognitionRef.current = recognition;
     } catch (err) {
-      console.warn('Start recognition instance error, will retry in 1s:', err);
-      clearTimeout(restartTimeoutRef.current);
-      restartTimeoutRef.current = setTimeout(() => {
-        if (voiceNavActiveRef.current && !permissionErrorRef.current && typeof document !== 'undefined' && document.visibilityState !== 'hidden') {
-          startRecognition();
-        }
-      }, 1000);
+      console.warn('Start recognition instance error:', err);
+      setIsListening(false);
+      isListeningRef.current = false;
     }
   };
 
   const toggleListening = () => {
     setPermissionError(null);
+    permissionErrorRef.current = null;
+
+    if (!isSpeechSupported) {
+      setShowHelp(true);
+      speakCue('Peramban ini tidak mendukung input suara langsung. Silakan pilih opsi perintah cepat.', undefined, true);
+      return;
+    }
 
     if (isListening && recognitionRef.current) {
       try {
@@ -411,7 +456,9 @@ export const VoiceNavigator: React.FC<VoiceNavigatorProps> = ({ onNavigateTab })
       } catch (_) {}
       setIsListening(false);
       isListeningRef.current = false;
+      speakCue('Jeda mendengar', undefined, true);
     } else {
+      speakCue('Mendengarkan...', undefined, true);
       startRecognition();
     }
   };
