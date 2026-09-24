@@ -11,9 +11,10 @@ import { RealtimeAudioWave } from '../common/RealtimeAudioWave';
 
 interface VoiceNavigatorProps {
   onNavigateTab: (tabId: string) => void;
+  activeTab?: string;
 }
 
-export const VoiceNavigator: React.FC<VoiceNavigatorProps> = ({ onNavigateTab }) => {
+export const VoiceNavigator: React.FC<VoiceNavigatorProps> = ({ onNavigateTab, activeTab }) => {
   const {
     voiceNavActive,
     setVoiceNavActive,
@@ -58,22 +59,27 @@ export const VoiceNavigator: React.FC<VoiceNavigatorProps> = ({ onNavigateTab })
   const lastCommandTimeRef = useRef<number>(0);
   const restartTimeoutRef = useRef<any>(null);
   const isLiveTranscribingRef = useRef<boolean>(false);
-  const pendingLiveInterimRef = useRef<string>('');
-  const interimFlushTimerRef = useRef<any>(null);
 
   voiceNavActiveRef.current = voiceNavActive;
   permissionErrorRef.current = permissionError;
   isLiveTranscribingRef.current = isLiveTranscribing;
 
-  // Listen to live lecture recording status to prevent dual visual clutter and keep mic listening
+  // Listen to live lecture recording status to prevent mic conflicts
   useEffect(() => {
     const handleRecordingStatus = (e: Event) => {
       const customEvent = e as CustomEvent<{ isRecording: boolean }>;
       const recording = !!customEvent.detail?.isRecording;
       setIsLiveTranscribing(recording);
       isLiveTranscribingRef.current = recording;
-      if (recording && voiceNavActiveRef.current && !recognitionRef.current) {
-        startRecognition();
+      if (recording) {
+        // LectureCompanion is actively recording: release VoiceNavigator mic instance
+        if (recognitionRef.current) {
+          try {
+            recognitionRef.current.abort();
+          } catch (_) {}
+          recognitionRef.current = null;
+        }
+        setIsListening(false);
       }
     };
 
@@ -279,8 +285,8 @@ export const VoiceNavigator: React.FC<VoiceNavigatorProps> = ({ onNavigateTab })
 
     try {
       const recognition = new SpeechAPI();
-      // Keep continuous listening active so Android does not terminate prematurely
-      recognition.continuous = true;
+      // On mobile, continuous MUST be false for reliable utterance recognition on Android Chrome
+      recognition.continuous = !isMobile;
       recognition.interimResults = true;
       recognition.lang = 'id-ID';
       recognition.maxAlternatives = 1;
@@ -311,49 +317,6 @@ export const VoiceNavigator: React.FC<VoiceNavigatorProps> = ({ onNavigateTab })
 
         setLiveTranscript(activeText);
 
-        // When live recording is active, stream speech directly with zero loss
-        if (isLiveTranscribingRef.current) {
-          // Check ONLY for explicit recording control commands (stop, jeda, selesai)
-          const intent = classifyIndonesianVoiceIntent(activeText, { isRecording: true });
-          if (intent) {
-            clearTimeout(interimFlushTimerRef.current);
-            pendingLiveInterimRef.current = '';
-            dispatchAction(intent.action, intent.payload, intent.label);
-            setLiveTranscript('');
-            return;
-          }
-
-          clearTimeout(interimFlushTimerRef.current);
-
-          if (final) {
-            pendingLiveInterimRef.current = '';
-            window.dispatchEvent(new CustomEvent('ablefy-live-transcribe', {
-              detail: { text: final }
-            }));
-            setLiveTranscript('');
-          } else if (interim) {
-            pendingLiveInterimRef.current = interim;
-            window.dispatchEvent(new CustomEvent('ablefy-live-transcribe-interim', {
-              detail: { text: interim }
-            }));
-
-            // Auto-promote interim to final after 1.3s if Chrome delays isFinal
-            interimFlushTimerRef.current = setTimeout(() => {
-              if (pendingLiveInterimRef.current.trim() && isLiveTranscribingRef.current) {
-                window.dispatchEvent(new CustomEvent('ablefy-live-transcribe', {
-                  detail: { text: pendingLiveInterimRef.current.trim() }
-                }));
-                pendingLiveInterimRef.current = '';
-                window.dispatchEvent(new CustomEvent('ablefy-live-transcribe-interim', {
-                  detail: { text: '' }
-                }));
-                setLiveTranscript('');
-              }
-            }, 1300);
-          }
-          return;
-        }
-
         const now = Date.now();
         if (now - lastCommandTimeRef.current < 600) return;
 
@@ -375,42 +338,18 @@ export const VoiceNavigator: React.FC<VoiceNavigatorProps> = ({ onNavigateTab })
 
       recognition.onend = () => {
         setIsListening(false);
-        clearTimeout(interimFlushTimerRef.current);
-        // Flush any unfinalized speech before restarting recognition
-        if (pendingLiveInterimRef.current.trim() && isLiveTranscribingRef.current) {
-          window.dispatchEvent(new CustomEvent('ablefy-live-transcribe', {
-            detail: { text: pendingLiveInterimRef.current.trim() }
-          }));
-          pendingLiveInterimRef.current = '';
-          window.dispatchEvent(new CustomEvent('ablefy-live-transcribe-interim', {
-            detail: { text: '' }
-          }));
-        }
 
-        // On desktop or when recording in lecture: auto-restart seamlessly
-        // On mobile normal voice nav: do NOT rapid-fire beeps when idle.
+        // On desktop: auto-restart seamlessly
+        // On mobile: return to quiet standby ("Ketuk untuk bicara") unless user gave a command recently
         const shouldAutoRestart = voiceNavActiveRef.current && !permissionErrorRef.current && typeof document !== 'undefined' && document.visibilityState !== 'hidden';
 
-        if (shouldAutoRestart) {
-          if (!isMobile || isLiveTranscribingRef.current) {
-            clearTimeout(restartTimeoutRef.current);
-            restartTimeoutRef.current = setTimeout(() => {
-              if (voiceNavActiveRef.current && !permissionErrorRef.current) {
-                startRecognition();
-              }
-            }, 600);
-          } else {
-            // On mobile: keep listening window open for consecutive commands if user spoke recently
-            const timeSinceLastCommand = Date.now() - lastCommandTimeRef.current;
-            if (timeSinceLastCommand < 3500) {
-              clearTimeout(restartTimeoutRef.current);
-              restartTimeoutRef.current = setTimeout(() => {
-                if (voiceNavActiveRef.current && !permissionErrorRef.current) {
-                  startRecognition();
-                }
-              }, 600);
+        if (shouldAutoRestart && !isMobile && !isLiveTranscribingRef.current) {
+          clearTimeout(restartTimeoutRef.current);
+          restartTimeoutRef.current = setTimeout(() => {
+            if (voiceNavActiveRef.current && !permissionErrorRef.current && !isLiveTranscribingRef.current) {
+              startRecognition();
             }
-          }
+          }, 600);
         }
       };
 
@@ -429,6 +368,16 @@ export const VoiceNavigator: React.FC<VoiceNavigatorProps> = ({ onNavigateTab })
 
   const toggleListening = () => {
     setPermissionError(null);
+    if (activeTab === 'lecture') {
+      // In lecture mode: tapping the mic starts/stops lecture recording directly!
+      if (isLiveTranscribingRef.current) {
+        dispatchAction('STOP_RECORDING');
+      } else {
+        dispatchAction('START_RECORDING');
+      }
+      return;
+    }
+
     if (isListening && recognitionRef.current) {
       try {
         recognitionRef.current.abort();
@@ -443,20 +392,23 @@ export const VoiceNavigator: React.FC<VoiceNavigatorProps> = ({ onNavigateTab })
     toggleListening();
   };
 
-  // Re-engage voice recognition automatically when mobile app returns to foreground
+  // Re-engage voice recognition automatically when desktop app returns to foreground
   useEffect(() => {
     const handleVisibilityChange = () => {
-      if (document.visibilityState === 'visible' && voiceNavActiveRef.current && !permissionErrorRef.current) {
+      if (!isMobile && document.visibilityState === 'visible' && voiceNavActiveRef.current && !permissionErrorRef.current && !isLiveTranscribingRef.current) {
         startRecognition();
       }
     };
     document.addEventListener('visibilitychange', handleVisibilityChange);
     return () => document.removeEventListener('visibilitychange', handleVisibilityChange);
-  }, []);
+  }, [isMobile]);
 
   useEffect(() => {
     if (voiceNavActive) {
-      requestMicrophoneAccess();
+      // On desktop, auto-start hands-free; on mobile, wait for user gesture tap
+      if (!isMobile) {
+        requestMicrophoneAccess();
+      }
     } else {
       clearTimeout(restartTimeoutRef.current);
       if (recognitionRef.current) {
@@ -602,9 +554,9 @@ export const VoiceNavigator: React.FC<VoiceNavigatorProps> = ({ onNavigateTab })
         <button
           onClick={toggleListening}
           className="relative flex items-center justify-center shrink-0 w-8 h-8 rounded-full bg-gradient-to-tr from-blue-600 via-indigo-600 to-cyan-400 text-white shadow-md active:scale-95 transition-transform"
-          title={isListening ? "Klik untuk jeda mendengar" : "Klik untuk bicara"}
+          title={isLiveTranscribing ? "Hentikan perekaman" : isListening ? "Klik untuk jeda mendengar" : activeTab === 'lecture' ? "Mulai rekam transkrip" : "Klik untuk bicara"}
         >
-          {isListening && (
+          {(isListening || isLiveTranscribing) && (
             <span className={`absolute -inset-1 rounded-full ${
               isLiveTranscribing
                 ? 'bg-rose-500 opacity-60 animate-ping'
@@ -687,7 +639,7 @@ export const VoiceNavigator: React.FC<VoiceNavigatorProps> = ({ onNavigateTab })
                 variant="cyan"
               />
               <span className="text-[11px] text-slate-300 font-medium transition-opacity duration-300 truncate max-w-[130px] sm:max-w-[170px]">
-                {isListening ? (isMobile ? 'Mendengarkan...' : ROTATING_HINTS[hintIndex]) : 'Ketuk untuk bicara'}
+                {isListening ? (isMobile ? 'Mendengarkan...' : ROTATING_HINTS[hintIndex]) : (activeTab === 'lecture' ? 'Ketuk untuk rekam' : 'Ketuk untuk bicara')}
               </span>
             </div>
           )}

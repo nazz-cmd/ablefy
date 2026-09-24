@@ -129,6 +129,7 @@ export const LectureCompanion: React.FC = () => {
 
   // Multi-Source Selector: 'mic' | 'audio' | 'video'
   const [sourceMode, setSourceMode] = useState<TranscribeSource>('mic');
+  const isMobile = typeof navigator !== 'undefined' && /Android|iPhone|iPad|iPod|Mobile/i.test(navigator.userAgent);
 
   // Live Mic State
   const [isListening, setIsListening] = useState(false);
@@ -718,7 +719,8 @@ export const LectureCompanion: React.FC = () => {
 
     try {
       const recognition = new SpeechAPI();
-      recognition.continuous = true;
+      // On mobile, continuous MUST be false because Chromium Android does not support continuous: true
+      recognition.continuous = !isMobile;
       recognition.interimResults = true;
       recognition.lang = 'id-ID';
 
@@ -783,13 +785,13 @@ export const LectureCompanion: React.FC = () => {
         }
 
         // Automatically restart seamlessly if user hasn't stopped recording
-        if (isListeningRef.current && !voiceNavActiveRef.current && typeof document !== 'undefined' && document.visibilityState !== 'hidden') {
+        if (isListeningRef.current && typeof document !== 'undefined' && document.visibilityState !== 'hidden') {
           clearTimeout(restartTimerRef.current);
           restartTimerRef.current = setTimeout(() => {
-            if (isListeningRef.current && !voiceNavActiveRef.current) {
+            if (isListeningRef.current) {
               startStandaloneRecognition();
             }
-          }, 600);
+          }, isMobile ? 300 : 500);
         }
       };
 
@@ -800,15 +802,6 @@ export const LectureCompanion: React.FC = () => {
       simulateLiveTranscription();
     }
   };
-
-  // Switch mic pipeline cleanly when VoiceNavigator is toggled
-  useEffect(() => {
-    if (voiceNavActive && recognitionRef.current) {
-      stopStandaloneRecognition();
-    } else if (!voiceNavActive && isListening && !recognitionRef.current) {
-      startStandaloneRecognition();
-    }
-  }, [voiceNavActive]);
 
   useEffect(() => {
     return () => {
@@ -874,20 +867,6 @@ export const LectureCompanion: React.FC = () => {
     finalizeActiveBubble();
 
     const willRecord = !isListening;
-
-    if (voiceNavActive) {
-      setIsListening(willRecord);
-      isListeningRef.current = willRecord;
-      setInterimSpeech(willRecord ? 'Mendengarkan ucapan langsung...' : '');
-      speakCue(willRecord ? 'Perekaman aktif' : 'Perekaman suara dihentikan');
-
-      window.dispatchEvent(
-        new CustomEvent('ablefy-recording-status', {
-          detail: { isRecording: willRecord }
-        })
-      );
-      return;
-    }
 
     if (!willRecord) {
       setIsListening(false);
@@ -1148,11 +1127,12 @@ export const LectureCompanion: React.FC = () => {
           setIsListening(true);
           isListeningRef.current = true;
           speakCue('Perekaman aktif');
-          if (!voiceNavActiveRef.current) {
-            startStandaloneRecognition();
-          } else {
-            setInterimSpeech('Mendengarkan ucapan langsung...');
-          }
+          window.dispatchEvent(
+            new CustomEvent('ablefy-recording-status', {
+              detail: { isRecording: true }
+            })
+          );
+          startStandaloneRecognition();
         }
       } else if (action === 'STOP_RECORDING') {
         clearTimeout(pauseTimerRef.current);
