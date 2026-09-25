@@ -21,6 +21,8 @@ import {
   playAudioUrl,
   stopAllAudio as stopMicrosoftAudio,
   speakWithBrowserAzureFallback,
+  unlockMobileAudio,
+  prefetchMicrosoftTts,
   type AzureVoiceId
 } from '../../services/microsoftTtsService';
 
@@ -43,6 +45,8 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onLaunchApp }) => {
     rateMultiplier = 1.0,
     onEnd?: () => void
   ) => {
+    // Unlock mobile audio stack synchronously within the user tap event
+    unlockMobileAudio();
     stopMicrosoftAudio();
 
     const targetVoice: AzureVoiceId = personaId === 'ardi' || personaId === 'bima'
@@ -76,6 +80,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onLaunchApp }) => {
   const card1Sentence = "Membacakan dokumen tugas dan artikel dengan irama suara yang tenang serta format ramah disleksia.";
 
   const handleToggleCard1 = () => {
+    unlockMobileAudio();
     if (card1Playing) {
       stopMicrosoftAudio();
       setCard1Playing(false);
@@ -98,9 +103,11 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onLaunchApp }) => {
     if (!SpeechRecognition) return;
 
     try {
+      const isMobileDevice = typeof navigator !== 'undefined' && /Android|iPhone|iPad|iPod|Mobile/i.test(navigator.userAgent);
       const recognition = new SpeechRecognition();
       recognition.lang = 'id-ID';
-      recognition.continuous = true;
+      // iOS WebKit crashes if continuous is true; single utterance mode ensures mobile reliability
+      recognition.continuous = !isMobileDevice;
       recognition.interimResults = true;
 
       recognition.onstart = () => {
@@ -137,6 +144,10 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onLaunchApp }) => {
   };
 
   useEffect(() => {
+    // Preload audio samples in background for instant 0ms playback on mobile & desktop
+    prefetchMicrosoftTts(card1Sentence, { voice: 'id-ID-GadisNeural' });
+    prefetchMicrosoftTts(card1Sentence, { voice: 'id-ID-ArdiNeural' });
+
     // Preload next section WebP images in background for instant 0ms switching
     const preloadUrls = [
       '/images/hero-3d-netra.webp',
@@ -383,11 +394,11 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onLaunchApp }) => {
                   <div className="absolute inset-0 bg-gradient-to-t from-slate-950/70 via-transparent to-transparent pointer-events-none" />
 
                   {/* Top Floating Glassmorphism Header Bar (Responsive & Anti-Collision) */}
-                  <div className="absolute top-2.5 sm:top-4 left-2.5 right-2.5 sm:left-4 sm:right-4 flex items-start justify-between gap-2 pointer-events-none z-10">
+                  <div className="absolute top-2 sm:top-4 left-2 right-2 sm:left-4 sm:right-4 flex items-center justify-between gap-1.5 sm:gap-2 pointer-events-none z-10">
                     {/* Badge 1: Top Left - Suara Alami */}
-                    <div className="pointer-events-auto backdrop-blur-xl bg-white/95 text-slate-900 border border-white/70 shadow-lg sm:shadow-xl rounded-xl sm:rounded-2xl px-2.5 py-1.5 sm:px-3.5 sm:py-2.5 flex items-center gap-2 max-w-[49%] min-w-0 transition-all duration-300 hover:scale-105 select-none animate-in fade-in">
-                      <div className="w-7 h-7 sm:w-8 sm:h-8 rounded-lg sm:rounded-xl bg-gradient-to-tr from-blue-600 to-indigo-600 text-white flex items-center justify-center shrink-0 shadow-xs">
-                        <Volume2 className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
+                    <div className="pointer-events-auto backdrop-blur-xl bg-white/95 text-slate-900 border border-white/70 shadow-md sm:shadow-xl rounded-xl sm:rounded-2xl px-2 py-1.5 sm:px-3.5 sm:py-2.5 flex items-center gap-1.5 sm:gap-2 flex-1 sm:flex-initial max-w-[48%] sm:max-w-none min-w-0 transition-all duration-300 hover:scale-105 select-none animate-in fade-in">
+                      <div className="w-6 h-6 sm:w-8 sm:h-8 rounded-lg sm:rounded-xl bg-gradient-to-tr from-blue-600 to-indigo-600 text-white flex items-center justify-center shrink-0 shadow-xs">
+                        <Volume2 className="w-3 h-3 sm:w-4 sm:h-4" />
                       </div>
                       <div className="min-w-0">
                         <div className="text-[10px] sm:text-xs font-black text-slate-950 leading-tight truncate">Suara Alami</div>
@@ -396,9 +407,9 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onLaunchApp }) => {
                     </div>
 
                     {/* Badge 2: Top Right - Transkripsi Live */}
-                    <div className="pointer-events-auto backdrop-blur-xl bg-slate-950/90 text-white border border-white/20 shadow-lg sm:shadow-xl rounded-xl sm:rounded-2xl px-2.5 py-1.5 sm:px-3.5 sm:py-2.5 flex items-center gap-2 max-w-[49%] min-w-0 transition-all duration-300 hover:scale-105 select-none animate-in fade-in shrink-0">
-                      <div className="w-7 h-7 sm:w-8 sm:h-8 rounded-lg sm:rounded-xl bg-gradient-to-tr from-rose-500 to-pink-600 text-white flex items-center justify-center shrink-0 shadow-xs">
-                        <Radio className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
+                    <div className="pointer-events-auto backdrop-blur-xl bg-slate-950/90 text-white border border-white/20 shadow-md sm:shadow-xl rounded-xl sm:rounded-2xl px-2 py-1.5 sm:px-3.5 sm:py-2.5 flex items-center gap-1.5 sm:gap-2 flex-1 sm:flex-initial max-w-[48%] sm:max-w-none min-w-0 transition-all duration-300 hover:scale-105 select-none animate-in fade-in">
+                      <div className="w-6 h-6 sm:w-8 sm:h-8 rounded-lg sm:rounded-xl bg-gradient-to-tr from-rose-500 to-pink-600 text-white flex items-center justify-center shrink-0 shadow-xs">
+                        <Radio className="w-3 h-3 sm:w-4 sm:h-4" />
                       </div>
                       <div className="min-w-0">
                         <div className="flex items-center gap-1 sm:gap-1.5">
@@ -410,31 +421,31 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onLaunchApp }) => {
                     </div>
                   </div>
 
-                  {/* Floating Glassmorphism Banner 3: Bottom Bar Overlay */}
-                  <div className="absolute bottom-2.5 left-2.5 right-2.5 sm:bottom-4 sm:left-4 sm:right-4 backdrop-blur-xl bg-white/95 text-slate-900 border border-white/80 shadow-2xl rounded-2xl p-2.5 sm:p-4 flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-2.5 sm:gap-3 transition-all z-10">
-                    <div className="flex items-center gap-2.5 sm:gap-3 min-w-0">
+                  {/* Floating Glassmorphism Banner 3: Bottom Bar Overlay (Ultra-Sleek on Mobile) */}
+                  <div className="absolute bottom-2 left-2 right-2 sm:bottom-4 sm:left-4 sm:right-4 backdrop-blur-xl bg-white/95 text-slate-900 border border-white/80 shadow-xl rounded-xl sm:rounded-2xl p-2 sm:p-4 flex items-center justify-between gap-2 sm:gap-3 transition-all z-10">
+                    <div className="flex items-center gap-2 sm:gap-3 min-w-0">
                       <div className="flex -space-x-1.5 overflow-hidden shrink-0">
-                        <span className="w-6 h-6 sm:w-7 sm:h-7 rounded-full bg-blue-100 text-blue-700 flex items-center justify-center font-bold text-[10px] sm:text-xs shadow-2xs">👁️</span>
-                        <span className="w-6 h-6 sm:w-7 sm:h-7 rounded-full bg-rose-100 text-rose-700 flex items-center justify-center font-bold text-[10px] sm:text-xs shadow-2xs">🧏</span>
-                        <span className="w-6 h-6 sm:w-7 sm:h-7 rounded-full bg-amber-100 text-amber-700 flex items-center justify-center font-bold text-[10px] sm:text-xs shadow-2xs">📖</span>
-                        <span className="w-6 h-6 sm:w-7 sm:h-7 rounded-full bg-emerald-100 text-emerald-700 flex items-center justify-center font-bold text-[10px] sm:text-xs shadow-2xs">♿</span>
+                        <span className="w-5 h-5 sm:w-7 sm:h-7 rounded-full bg-blue-100 text-blue-700 flex items-center justify-center font-bold text-[9px] sm:text-xs shadow-2xs">👁️</span>
+                        <span className="w-5 h-5 sm:w-7 sm:h-7 rounded-full bg-rose-100 text-rose-700 flex items-center justify-center font-bold text-[9px] sm:text-xs shadow-2xs">🧏</span>
+                        <span className="w-5 h-5 sm:w-7 sm:h-7 rounded-full bg-amber-100 text-amber-700 flex items-center justify-center font-bold text-[9px] sm:text-xs shadow-2xs">📖</span>
+                        <span className="w-5 h-5 sm:w-7 sm:h-7 rounded-full bg-emerald-100 text-emerald-700 flex items-center justify-center font-bold text-[9px] sm:text-xs shadow-2xs">♿</span>
                       </div>
                       <div className="min-w-0">
-                        <div className="text-xs sm:text-sm font-black text-slate-950 truncate">
+                        <div className="text-[11px] sm:text-sm font-black text-slate-950 truncate">
                           Teknologi Inklusif untuk Semua
                         </div>
-                        <div className="text-[10px] sm:text-[11px] text-slate-500 font-medium truncate">
-                          Membuka ruang literasi & perkuliahan mandiri
+                        <div className="text-[9px] sm:text-[11px] text-slate-500 font-medium truncate">
+                          Membuka ruang literasi mandiri
                         </div>
                       </div>
                     </div>
 
                     <button
                       onClick={() => onLaunchApp('home')}
-                      className="w-full sm:w-auto px-4 py-2 rounded-xl bg-blue-600 hover:bg-blue-700 active:scale-95 text-white text-xs font-bold transition flex items-center justify-center gap-1.5 shadow-md shadow-blue-500/20 shrink-0"
+                      className="px-2.5 sm:px-4 py-1.5 sm:py-2 rounded-lg sm:rounded-xl bg-blue-600 hover:bg-blue-700 active:scale-95 text-white text-[10px] sm:text-xs font-bold transition flex items-center justify-center gap-1 shadow-md shadow-blue-500/20 shrink-0"
                     >
                       <span>Coba Sekarang</span>
-                      <ArrowRight className="w-3.5 h-3.5" />
+                      <ArrowRight className="w-3 h-3 sm:w-3.5 sm:h-3.5" />
                     </button>
                   </div>
                 </div>
@@ -725,13 +736,13 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onLaunchApp }) => {
                       <div className="absolute inset-0 bg-gradient-to-t from-slate-950/80 via-slate-950/20 to-transparent pointer-events-none" />
 
                       {/* Top Floating Glassmorphism Header Bar (Responsive & Anti-Collision) */}
-                      <div className="absolute top-2.5 sm:top-4 left-2.5 right-2.5 sm:left-4 sm:right-4 flex items-start justify-between gap-2 pointer-events-none z-10">
+                      <div className="absolute top-2 sm:top-4 left-2 right-2 sm:left-4 sm:right-4 flex items-center justify-between gap-1.5 sm:gap-2 pointer-events-none z-10">
                         {/* Top Left Floating Glassmorphism Badge */}
-                        <div className="pointer-events-auto backdrop-blur-xl bg-white/95 text-slate-900 border border-white/70 shadow-lg sm:shadow-xl rounded-xl sm:rounded-2xl px-2.5 py-1.5 sm:px-3.5 sm:py-2.5 flex items-center gap-2 max-w-[49%] min-w-0 transition-all duration-300 hover:scale-105 select-none animate-in fade-in">
+                        <div className="pointer-events-auto backdrop-blur-xl bg-white/95 text-slate-900 border border-white/70 shadow-md sm:shadow-xl rounded-xl sm:rounded-2xl px-2 py-1.5 sm:px-3.5 sm:py-2.5 flex items-center gap-1.5 sm:gap-2 flex-1 sm:flex-initial max-w-[48%] sm:max-w-none min-w-0 transition-all duration-300 hover:scale-105 select-none animate-in fade-in">
                           {activePillarTab === 'netra' && (
                             <>
-                              <div className="w-7 h-7 sm:w-8 sm:h-8 rounded-lg sm:rounded-xl bg-gradient-to-tr from-blue-600 to-indigo-600 text-white flex items-center justify-center shrink-0 shadow-xs">
-                                <Volume2 className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
+                              <div className="w-6 h-6 sm:w-8 sm:h-8 rounded-lg sm:rounded-xl bg-gradient-to-tr from-blue-600 to-indigo-600 text-white flex items-center justify-center shrink-0 shadow-xs">
+                                <Volume2 className="w-3 h-3 sm:w-4 sm:h-4" />
                               </div>
                               <div className="min-w-0">
                                 <div className="text-[10px] sm:text-xs font-black text-slate-950 leading-tight truncate">Suara Alami</div>
@@ -741,8 +752,8 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onLaunchApp }) => {
                           )}
                           {activePillarTab === 'tuli' && (
                             <>
-                              <div className="w-7 h-7 sm:w-8 sm:h-8 rounded-lg sm:rounded-xl bg-gradient-to-tr from-rose-500 to-pink-600 text-white flex items-center justify-center shrink-0 shadow-xs">
-                                <Radio className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
+                              <div className="w-6 h-6 sm:w-8 sm:h-8 rounded-lg sm:rounded-xl bg-gradient-to-tr from-rose-500 to-pink-600 text-white flex items-center justify-center shrink-0 shadow-xs">
+                                <Radio className="w-3 h-3 sm:w-4 sm:h-4" />
                               </div>
                               <div className="min-w-0">
                                 <div className="text-[10px] sm:text-xs font-black text-slate-950 leading-tight truncate">Transkripsi Live</div>
@@ -752,8 +763,8 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onLaunchApp }) => {
                           )}
                           {activePillarTab === 'disleksia' && (
                             <>
-                              <div className="w-7 h-7 sm:w-8 sm:h-8 rounded-lg sm:rounded-xl bg-gradient-to-tr from-amber-500 to-orange-600 text-white flex items-center justify-center shrink-0 shadow-xs">
-                                <Eye className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
+                              <div className="w-6 h-6 sm:w-8 sm:h-8 rounded-lg sm:rounded-xl bg-gradient-to-tr from-amber-500 to-orange-600 text-white flex items-center justify-center shrink-0 shadow-xs">
+                                <Eye className="w-3 h-3 sm:w-4 sm:h-4" />
                               </div>
                               <div className="min-w-0">
                                 <div className="text-[10px] sm:text-xs font-black text-slate-950 leading-tight truncate">Bionic Reading</div>
@@ -763,8 +774,8 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onLaunchApp }) => {
                           )}
                           {activePillarTab === 'motorik' && (
                             <>
-                              <div className="w-7 h-7 sm:w-8 sm:h-8 rounded-lg sm:rounded-xl bg-gradient-to-tr from-emerald-500 to-teal-600 text-white flex items-center justify-center shrink-0 shadow-xs">
-                                <Mic className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
+                              <div className="w-6 h-6 sm:w-8 sm:h-8 rounded-lg sm:rounded-xl bg-gradient-to-tr from-emerald-500 to-teal-600 text-white flex items-center justify-center shrink-0 shadow-xs">
+                                <Mic className="w-3 h-3 sm:w-4 sm:h-4" />
                               </div>
                               <div className="min-w-0">
                                 <div className="text-[10px] sm:text-xs font-black text-slate-950 leading-tight truncate">Bebas Tangan</div>
@@ -775,7 +786,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onLaunchApp }) => {
                         </div>
 
                         {/* Top Right Floating Glassmorphism Badge */}
-                        <div className="pointer-events-auto backdrop-blur-xl bg-slate-950/90 text-white border border-white/20 shadow-lg sm:shadow-xl rounded-xl sm:rounded-2xl px-2.5 py-1.5 sm:px-3.5 sm:py-2.5 flex items-center gap-2 max-w-[49%] min-w-0 transition-all duration-300 hover:scale-105 select-none animate-in fade-in shrink-0">
+                        <div className="pointer-events-auto backdrop-blur-xl bg-slate-950/90 text-white border border-white/20 shadow-md sm:shadow-xl rounded-xl sm:rounded-2xl px-2 py-1.5 sm:px-3.5 sm:py-2.5 flex items-center gap-1.5 sm:gap-2 flex-1 sm:flex-initial max-w-[48%] sm:max-w-none min-w-0 transition-all duration-300 hover:scale-105 select-none animate-in fade-in">
                           {activePillarTab === 'netra' && (
                             <div className="flex items-center gap-1.5 sm:gap-2 min-w-0">
                               <button
@@ -849,27 +860,27 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onLaunchApp }) => {
                         </div>
                       </div>
 
-                      {/* Floating Glassmorphism Banner 3: Bottom Bar Overlay */}
-                      <div className="absolute bottom-2.5 left-2.5 right-2.5 sm:bottom-4 sm:left-4 sm:right-4 backdrop-blur-xl bg-white/95 text-slate-900 border border-white/80 shadow-2xl rounded-2xl p-2.5 sm:p-4 flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-2.5 sm:gap-3 transition-all z-10">
-                        <div className="flex items-center gap-2.5 sm:gap-3 min-w-0">
-                          <div className="w-7 h-7 sm:w-9 sm:h-9 rounded-lg sm:rounded-xl flex items-center justify-center text-sm sm:text-lg shrink-0 shadow-xs border border-white/60 bg-slate-100">
+                      {/* Floating Glassmorphism Banner 3: Bottom Bar Overlay (Ultra-Sleek on Mobile) */}
+                      <div className="absolute bottom-2 left-2 right-2 sm:bottom-4 sm:left-4 sm:right-4 backdrop-blur-xl bg-white/95 text-slate-900 border border-white/80 shadow-xl rounded-xl sm:rounded-2xl p-2 sm:p-4 flex items-center justify-between gap-2 sm:gap-3 transition-all z-10">
+                        <div className="flex items-center gap-2 sm:gap-3 min-w-0">
+                          <div className="w-6 h-6 sm:w-9 sm:h-9 rounded-lg sm:rounded-xl flex items-center justify-center text-xs sm:text-lg shrink-0 shadow-xs border border-white/60 bg-slate-100">
                             {activePillarTab === 'netra' && '👁️'}
                             {activePillarTab === 'tuli' && '🧏'}
                             {activePillarTab === 'disleksia' && '📖'}
                             {activePillarTab === 'motorik' && '♿'}
                           </div>
                           <div className="min-w-0">
-                            <div className="text-xs sm:text-sm font-black text-slate-950 truncate">
-                              {activePillarTab === 'netra' && 'Sahabat Netra — Literasi Tanpa Halangan'}
-                              {activePillarTab === 'tuli' && 'Sahabat Tuli — Kuliah & Diskusi Terbaca'}
-                              {activePillarTab === 'disleksia' && 'Disleksia & ADHD — Fokus Tanpa Distraksi'}
-                              {activePillarTab === 'motorik' && 'Disabilitas Fisik — Kendali Mandiri Total'}
+                            <div className="text-[11px] sm:text-sm font-black text-slate-950 truncate">
+                              {activePillarTab === 'netra' && 'Sahabat Netra — Literasi Nyata'}
+                              {activePillarTab === 'tuli' && 'Sahabat Tuli — Kuliah Terbaca'}
+                              {activePillarTab === 'disleksia' && 'Disleksia — Fokus Tanpa Distraksi'}
+                              {activePillarTab === 'motorik' && 'Disabilitas Fisik — Kendali Mandiri'}
                             </div>
-                            <div className="text-[10px] sm:text-[11px] text-slate-500 font-medium truncate">
-                              {activePillarTab === 'netra' && 'Mendengar dokumen dengan intonasi manusiawi yang ramah'}
-                              {activePillarTab === 'tuli' && 'Menangkap pembicaraan ruang kelas secara langsung'}
-                              {activePillarTab === 'disleksia' && 'Membaca artikel panjang dengan bantuan fiksasi bionic'}
-                              {activePillarTab === 'motorik' && 'Akses penuh hanya dengan suara atau sakelar tunggal'}
+                            <div className="text-[9px] sm:text-[11px] text-slate-500 font-medium truncate">
+                              {activePillarTab === 'netra' && 'Mendengar dokumen dengan intonasi manusiawi'}
+                              {activePillarTab === 'tuli' && 'Menangkap pembicaraan ruang kelas seketika'}
+                              {activePillarTab === 'disleksia' && 'Membaca artikel dengan bantuan fiksasi bionic'}
+                              {activePillarTab === 'motorik' && 'Akses penuh dengan suara atau sakelar tunggal'}
                             </div>
                           </div>
                         </div>
@@ -880,7 +891,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onLaunchApp }) => {
                             else if (activePillarTab === 'tuli') onLaunchApp('lecture');
                             else onLaunchApp('home');
                           }}
-                          className={`w-full sm:w-auto px-4 py-2 rounded-xl text-white text-xs font-bold transition flex items-center justify-center gap-1.5 shadow-md shrink-0 active:scale-95 ${
+                          className={`hidden sm:flex px-4 py-2 rounded-xl text-white text-xs font-bold transition items-center justify-center gap-1.5 shadow-md shrink-0 active:scale-95 ${
                             activePillarTab === 'netra'
                               ? 'bg-blue-600 hover:bg-blue-700 shadow-blue-500/20'
                               : activePillarTab === 'tuli'
@@ -1108,10 +1119,10 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onLaunchApp }) => {
                     <div className="absolute inset-0 bg-gradient-to-t from-slate-950/80 via-slate-950/20 to-transparent pointer-events-none" />
 
                     {/* Top Floating Glassmorphism Header Bar (Responsive & Anti-Collision) */}
-                    <div className="absolute top-2.5 sm:top-4 left-2.5 right-2.5 sm:left-4 sm:right-4 flex items-start justify-between gap-2 pointer-events-none z-10">
+                    <div className="absolute top-2 sm:top-4 left-2 right-2 sm:left-4 sm:right-4 flex items-center justify-between gap-1.5 sm:gap-2 pointer-events-none z-10">
                       {/* Top Left Floating Badge */}
-                      <div className="pointer-events-auto backdrop-blur-xl bg-white/95 text-slate-900 border border-white/70 shadow-lg sm:shadow-xl rounded-xl sm:rounded-2xl px-2.5 py-1.5 sm:px-3.5 sm:py-2.5 flex items-center gap-2 max-w-[49%] min-w-0 transition-all duration-300 hover:scale-105 select-none animate-in fade-in">
-                        <div className="w-7 h-7 sm:w-8 sm:h-8 rounded-lg sm:rounded-xl bg-gradient-to-tr from-blue-600 to-indigo-600 text-white flex items-center justify-center shrink-0 shadow-xs font-black text-xs">
+                      <div className="pointer-events-auto backdrop-blur-xl bg-white/95 text-slate-900 border border-white/70 shadow-md sm:shadow-xl rounded-xl sm:rounded-2xl px-2 py-1.5 sm:px-3.5 sm:py-2.5 flex items-center gap-1.5 sm:gap-2 flex-1 sm:flex-initial max-w-[48%] sm:max-w-none min-w-0 transition-all duration-300 hover:scale-105 select-none animate-in fade-in">
+                        <div className="w-6 h-6 sm:w-8 sm:h-8 rounded-lg sm:rounded-xl bg-gradient-to-tr from-blue-600 to-indigo-600 text-white flex items-center justify-center shrink-0 shadow-xs font-black text-[10px] sm:text-xs">
                           0{activeWorkflowStep}
                         </div>
                         <div className="min-w-0">
@@ -1129,9 +1140,9 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onLaunchApp }) => {
                       </div>
 
                       {/* Top Right Floating Badge */}
-                      <div className="pointer-events-auto backdrop-blur-xl bg-slate-950/90 text-white border border-white/20 shadow-lg sm:shadow-xl rounded-xl sm:rounded-2xl px-2.5 py-1.5 sm:px-3.5 sm:py-2.5 flex items-center gap-2 max-w-[49%] min-w-0 transition-all duration-300 hover:scale-105 select-none animate-in fade-in shrink-0">
-                        <div className="w-7 h-7 sm:w-8 sm:h-8 rounded-lg sm:rounded-xl bg-gradient-to-tr from-emerald-500 to-teal-600 text-white flex items-center justify-center shrink-0 shadow-xs">
-                          <Sparkles className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
+                      <div className="pointer-events-auto backdrop-blur-xl bg-slate-950/90 text-white border border-white/20 shadow-md sm:shadow-xl rounded-xl sm:rounded-2xl px-2 py-1.5 sm:px-3.5 sm:py-2.5 flex items-center gap-1.5 sm:gap-2 flex-1 sm:flex-initial max-w-[48%] sm:max-w-none min-w-0 transition-all duration-300 hover:scale-105 select-none animate-in fade-in">
+                        <div className="w-6 h-6 sm:w-8 sm:h-8 rounded-lg sm:rounded-xl bg-gradient-to-tr from-emerald-500 to-teal-600 text-white flex items-center justify-center shrink-0 shadow-xs">
+                          <Sparkles className="w-3 h-3 sm:w-4 sm:h-4" />
                         </div>
                         <div className="min-w-0">
                           <div className="flex items-center gap-1 sm:gap-1.5">
@@ -1147,22 +1158,22 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onLaunchApp }) => {
                       </div>
                     </div>
 
-                    {/* Floating Bottom Glassmorphism Bar */}
-                    <div className="absolute bottom-2.5 left-2.5 right-2.5 sm:bottom-4 sm:left-4 sm:right-4 backdrop-blur-xl bg-white/95 text-slate-900 border border-white/80 shadow-2xl rounded-2xl p-2.5 sm:p-4 flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-2.5 sm:gap-3 transition-all z-10">
-                      <div className="flex items-center gap-2.5 sm:gap-3 min-w-0">
-                        <div className="w-7 h-7 sm:w-9 sm:h-9 rounded-lg sm:rounded-xl flex items-center justify-center text-sm sm:text-lg shrink-0 shadow-xs border border-white/60 bg-blue-50 text-blue-600 font-black">
+                    {/* Floating Bottom Glassmorphism Bar (Ultra-Sleek on Mobile) */}
+                    <div className="absolute bottom-2 left-2 right-2 sm:bottom-4 sm:left-4 sm:right-4 backdrop-blur-xl bg-white/95 text-slate-900 border border-white/80 shadow-xl rounded-xl sm:rounded-2xl p-2 sm:p-4 flex items-center justify-between gap-2 sm:gap-3 transition-all z-10">
+                      <div className="flex items-center gap-2 sm:gap-3 min-w-0">
+                        <div className="w-6 h-6 sm:w-9 sm:h-9 rounded-lg sm:rounded-xl flex items-center justify-center text-xs sm:text-lg shrink-0 shadow-xs border border-white/60 bg-blue-50 text-blue-600 font-black">
                           {activeWorkflowStep === 1 ? '📄' : activeWorkflowStep === 2 ? '⚙️' : '✨'}
                         </div>
                         <div className="min-w-0">
-                          <div className="text-xs sm:text-sm font-black text-slate-950 truncate">
-                            {activeWorkflowStep === 1 && 'Siapkan Materi Kuliah & Diskusi'}
-                            {activeWorkflowStep === 2 && 'Konfigurasi Asistif Sesuai Preferensi'}
-                            {activeWorkflowStep === 3 && 'Literasi Setara & Catatan Belajar Siap'}
+                          <div className="text-[11px] sm:text-sm font-black text-slate-950 truncate">
+                            {activeWorkflowStep === 1 && 'Materi Kuliah & Diskusi'}
+                            {activeWorkflowStep === 2 && 'Konfigurasi Mode Asistif'}
+                            {activeWorkflowStep === 3 && 'Literasi Setara & Hasil Mandiri'}
                           </div>
-                          <div className="text-[10px] sm:text-[11px] text-slate-500 font-medium truncate">
-                            {activeWorkflowStep === 1 && 'Unggah berkas atau tangkap suara dosen langsung'}
+                          <div className="text-[9px] sm:text-[11px] text-slate-500 font-medium truncate">
+                            {activeWorkflowStep === 1 && 'Unggah berkas atau tangkap suara langsung'}
                             {activeWorkflowStep === 2 && 'Pilih karakter suara, ukuran font, dan kontras'}
-                            {activeWorkflowStep === 3 && 'Dengarkan bacaan bernapas alami dan simpan catatan'}
+                            {activeWorkflowStep === 3 && 'Dengarkan bacaan alami dan simpan catatan'}
                           </div>
                         </div>
                       </div>
@@ -1170,7 +1181,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onLaunchApp }) => {
                       {activeWorkflowStep < 3 ? (
                         <button
                           onClick={() => setActiveWorkflowStep(activeWorkflowStep + 1)}
-                          className="w-full sm:w-auto px-4 py-2 rounded-xl bg-slate-950 hover:bg-slate-800 active:scale-95 text-white text-xs font-bold transition flex items-center justify-center gap-1.5 shadow-md shrink-0"
+                          className="hidden sm:flex px-4 py-2 rounded-xl bg-slate-950 hover:bg-slate-800 active:scale-95 text-white text-xs font-bold transition items-center justify-center gap-1.5 shadow-md shrink-0"
                         >
                           <span>Langkah Berikutnya</span>
                           <ArrowRight className="w-3.5 h-3.5 text-blue-400" />
@@ -1178,7 +1189,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onLaunchApp }) => {
                       ) : (
                         <button
                           onClick={() => onLaunchApp('home')}
-                          className="w-full sm:w-auto px-4 py-2 rounded-xl bg-blue-600 hover:bg-blue-700 active:scale-95 text-white text-xs font-bold transition flex items-center justify-center gap-1.5 shadow-md shadow-blue-500/20 shrink-0"
+                          className="hidden sm:flex px-4 py-2 rounded-xl bg-blue-600 hover:bg-blue-700 active:scale-95 text-white text-xs font-bold transition items-center justify-center gap-1.5 shadow-md shadow-blue-500/20 shrink-0"
                         >
                           <span>Buka Workspace</span>
                           <ArrowRight className="w-3.5 h-3.5" />

@@ -11,9 +11,10 @@ import { RealtimeAudioWave } from '../common/RealtimeAudioWave';
 
 interface VoiceNavigatorProps {
   onNavigateTab: (tabId: string) => void;
+  isLanding?: boolean;
 }
 
-export const VoiceNavigator: React.FC<VoiceNavigatorProps> = ({ onNavigateTab }) => {
+export const VoiceNavigator: React.FC<VoiceNavigatorProps> = ({ onNavigateTab, isLanding = false }) => {
   const {
     voiceNavActive,
     setVoiceNavActive,
@@ -533,7 +534,7 @@ export const VoiceNavigator: React.FC<VoiceNavigatorProps> = ({ onNavigateTab })
 
   if (!voiceNavActive) {
     return (
-      <div className="fixed bottom-20 lg:bottom-6 right-3 sm:right-6 z-40 select-none animate-in fade-in">
+      <div className={`fixed ${isLanding ? 'bottom-4' : 'bottom-20 lg:bottom-6'} right-3 sm:right-6 z-40 select-none animate-in fade-in`}>
         <button
           onClick={() => {
             setVoiceNavActive(true);
@@ -563,7 +564,7 @@ export const VoiceNavigator: React.FC<VoiceNavigatorProps> = ({ onNavigateTab })
     <div
       role="region"
       aria-label="Kontrol Navigasi Suara Bebas Tangan"
-      className="fixed bottom-20 lg:bottom-6 right-3 sm:right-6 z-50 flex flex-col items-end select-none"
+      className={`fixed ${isLanding ? 'bottom-4' : 'bottom-20 lg:bottom-6'} right-3 sm:right-6 z-50 flex flex-col items-end select-none`}
     >
       {/* Optional Interactive Command Palette Popover (Shown when Sparkles icon or Pilih Aksi is clicked) */}
       {showHelp && (

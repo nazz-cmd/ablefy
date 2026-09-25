@@ -102,6 +102,22 @@ export const synthesizeMicrosoftTts = async (
 };
 
 /**
+ * Synchronously pre-unlock mobile browser audio stack within a user touch/click gesture
+ */
+export const unlockMobileAudio = (): void => {
+  if (typeof window === 'undefined') return;
+  try {
+    const AudioCtx = window.AudioContext || (window as any).webkitAudioContext;
+    if (AudioCtx) {
+      const dummyCtx = new AudioCtx();
+      if (dummyCtx.state === 'suspended') {
+        dummyCtx.resume().catch(() => {});
+      }
+    }
+  } catch (_) {}
+};
+
+/**
  * Play synthesized audio URL with full lifecycle management
  */
 export const playAudioUrl = (
@@ -135,6 +151,7 @@ export const playAudioUrl = (
       };
 
       audio.play().catch((err) => {
+        console.warn('Audio play request blocked or failed:', err);
         currentAudioInstance = null;
         options?.onError?.(err);
         reject(err);

@@ -245,6 +245,7 @@ export const AppContent: React.FC = () => {
 
       {/* Hands-Free Voice Navigator for Quadriplegic / No-Hand Users */}
       <VoiceNavigator
+        isLanding={viewMode === 'landing'}
         onNavigateTab={(tabId) => {
           setViewMode('app');
           setActiveTab(tabId);
