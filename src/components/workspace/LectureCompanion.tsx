@@ -1219,12 +1219,12 @@ export const LectureCompanion: React.FC = () => {
     <div className="w-full max-w-[1536px] mx-auto px-3 sm:px-6 lg:px-8 py-6 pb-20 overflow-x-hidden">
       {/* Sleek Mobile & Desktop Top Control Bar: Fast Mode Switcher & 1-Tap Record Trigger */}
       <div className="mb-5 p-3 sm:p-4 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200/90 dark:border-slate-800 shadow-xs flex flex-wrap items-center justify-between gap-3">
-        {/* Source Mode Switcher Pills */}
-        <div className="flex items-center gap-1.5 p-1 bg-slate-100 dark:bg-slate-800/80 rounded-xl overflow-x-auto max-w-full">
+        {/* Source Mode Switcher Pills: Grid on mobile (no scrollbar), Flex on desktop */}
+        <div className="grid grid-cols-3 w-full sm:flex sm:w-auto items-center gap-1 sm:gap-1.5 p-1 bg-slate-100 dark:bg-slate-800/80 rounded-xl no-scrollbar [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
           {[
-            { id: 'mic', label: 'Mikrofon Langsung', icon: Mic },
-            { id: 'audio', label: 'Rekaman Audio', icon: Music },
-            { id: 'video', label: 'Video YouTube', icon: Video },
+            { id: 'mic', fullLabel: 'Mikrofon Langsung', shortLabel: 'Mikrofon', icon: Mic },
+            { id: 'audio', fullLabel: 'Rekaman Audio', shortLabel: 'Audio', icon: Music },
+            { id: 'video', fullLabel: 'Video YouTube', shortLabel: 'YouTube', icon: Video },
           ].map((mode) => {
             const Icon = mode.icon;
             const isCurrent = sourceMode === mode.id;
@@ -1232,14 +1232,15 @@ export const LectureCompanion: React.FC = () => {
               <button
                 key={mode.id}
                 onClick={() => handleSwitchSourceMode(mode.id as any)}
-                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition shrink-0 active:scale-95 ${
+                className={`flex items-center justify-center gap-1 sm:gap-1.5 px-1.5 sm:px-3.5 py-1.5 rounded-lg text-xs font-bold transition active:scale-95 ${
                   isCurrent
                     ? 'bg-blue-600 text-white shadow-xs'
                     : 'text-slate-600 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white hover:bg-slate-200/60 dark:hover:bg-slate-700/60'
                 }`}
               >
-                <Icon className="w-3.5 h-3.5" />
-                <span>{mode.label}</span>
+                <Icon className="w-3.5 h-3.5 shrink-0" />
+                <span className="hidden sm:inline truncate">{mode.fullLabel}</span>
+                <span className="sm:hidden text-[11px] truncate">{mode.shortLabel}</span>
               </button>
             );
           })}
