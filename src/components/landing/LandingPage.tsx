@@ -34,6 +34,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onLaunchApp }) => {
   const [openFaqIndex, setOpenFaqIndex] = useState<number | null>(null);
   const [activePillarTab, setActivePillarTab] = useState<'netra' | 'tuli' | 'disleksia' | 'motorik'>('netra');
   const [activeWorkflowStep, setActiveWorkflowStep] = useState<number>(1);
+  const [heroImageLoaded, setHeroImageLoaded] = useState<boolean>(false);
 
   // Helper to play text with chosen voice persona (powered by Microsoft Azure Neural)
   const speakWithPersona = async (
@@ -136,6 +137,21 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onLaunchApp }) => {
   };
 
   useEffect(() => {
+    // Preload next section WebP images in background for instant 0ms switching
+    const preloadUrls = [
+      '/images/hero-3d-netra.webp',
+      '/images/hero-3d-tuli.webp',
+      '/images/hero-3d-disleksia.webp',
+      '/images/hero-3d-motorik.webp',
+      '/images/hero-3d-step-1.webp',
+      '/images/hero-3d-step-2.webp',
+      '/images/hero-3d-step-3.webp'
+    ];
+    preloadUrls.forEach((src) => {
+      const img = new Image();
+      img.src = src;
+    });
+
     return () => {
       stopMicrosoftAudio();
       if (recognitionRef.current) {
@@ -339,13 +355,28 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onLaunchApp }) => {
                 {/* Ambient Soft Glow Behind the 3D Illustration */}
                 <div className="absolute -inset-4 bg-gradient-to-tr from-blue-500/20 via-indigo-500/20 to-cyan-400/20 rounded-[36px] blur-2xl opacity-75 group-hover:opacity-100 transition-opacity duration-500 pointer-events-none" />
 
-                {/* Main 3D Showcase Frame */}
-                <div className="relative rounded-3xl overflow-hidden border border-slate-200/90 bg-white shadow-2xl shadow-blue-500/10 transition-all duration-300 group-hover:shadow-blue-500/20">
+                {/* Main 3D Showcase Frame with Shimmer Skeleton */}
+                <div className="relative rounded-3xl overflow-hidden border border-slate-200/90 bg-slate-900/5 shadow-2xl shadow-blue-500/10 transition-all duration-300 group-hover:shadow-blue-500/20 min-h-[260px] sm:min-h-[380px] lg:min-h-[420px]">
+                  {/* Shimmer Placeholder before Image Loads */}
+                  {!heroImageLoaded && (
+                    <div className="absolute inset-0 bg-gradient-to-r from-slate-100 via-blue-50/60 to-slate-100 animate-pulse flex items-center justify-center pointer-events-none z-0">
+                      <div className="flex flex-col items-center gap-2 text-slate-400">
+                        <div className="w-8 h-8 rounded-full border-2 border-blue-500/30 border-t-blue-600 animate-spin" />
+                        <span className="text-[11px] font-semibold text-slate-500">Memuat visual...</span>
+                      </div>
+                    </div>
+                  )}
+
                   <img
-                    src="/images/hero-disability-3d.jpg"
+                    src="/images/hero-disability-3d.webp"
                     alt="Ilustrasi 3D Inklusivitas Disabilitas Digital Ablefy"
-                    className="w-full h-auto object-cover transform transition-transform duration-700 group-hover:scale-[1.02]"
+                    className={`w-full h-auto object-cover transform transition-all duration-700 group-hover:scale-[1.02] ${
+                      heroImageLoaded ? 'opacity-100' : 'opacity-0 scale-[0.98]'
+                    }`}
                     loading="eager"
+                    fetchPriority="high"
+                    decoding="async"
+                    onLoad={() => setHeroImageLoaded(true)}
                   />
 
                   {/* Gradient Overlay at Bottom of Image for Smooth Badge Integration */}
@@ -663,18 +694,18 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onLaunchApp }) => {
                     />
 
                     {/* Main 3D Showcase Frame */}
-                    <div className="relative rounded-3xl overflow-hidden border border-slate-200/90 bg-white shadow-2xl transition-all duration-500 group-hover:shadow-3xl">
+                    <div className="relative rounded-3xl overflow-hidden border border-slate-200/90 bg-slate-900/5 shadow-2xl transition-all duration-500 group-hover:shadow-3xl">
                       {/* 3D Thematic Image based on active tab */}
                       <img
                         key={activePillarTab}
                         src={
                           activePillarTab === 'netra'
-                            ? '/images/hero-3d-netra.jpg'
+                            ? '/images/hero-3d-netra.webp'
                             : activePillarTab === 'tuli'
-                            ? '/images/hero-3d-tuli.jpg'
+                            ? '/images/hero-3d-tuli.webp'
                             : activePillarTab === 'disleksia'
-                            ? '/images/hero-3d-disleksia.jpg'
-                            : '/images/hero-3d-motorik.jpg'
+                            ? '/images/hero-3d-disleksia.webp'
+                            : '/images/hero-3d-motorik.webp'
                         }
                         alt={
                           activePillarTab === 'netra'
@@ -687,6 +718,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onLaunchApp }) => {
                         }
                         className="w-full h-[320px] sm:h-[400px] lg:h-[450px] object-cover transform transition-transform duration-700 group-hover:scale-[1.02] animate-in fade-in"
                         loading="lazy"
+                        decoding="async"
                       />
 
                       {/* Gradient Overlay for Crisp Floating Badges */}
@@ -1050,15 +1082,15 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onLaunchApp }) => {
                   />
 
                   {/* Main 3D Showcase Frame */}
-                  <div className="relative rounded-3xl overflow-hidden border border-slate-200/90 bg-white shadow-2xl transition-all duration-500 group-hover:shadow-3xl">
+                  <div className="relative rounded-3xl overflow-hidden border border-slate-200/90 bg-slate-900/5 shadow-2xl transition-all duration-500 group-hover:shadow-3xl">
                     <img
                       key={activeWorkflowStep}
                       src={
                         activeWorkflowStep === 1
-                          ? '/images/hero-3d-step-1.jpg'
+                          ? '/images/hero-3d-step-1.webp'
                           : activeWorkflowStep === 2
-                          ? '/images/hero-3d-step-2.jpg'
-                          : '/images/hero-3d-step-3.jpg'
+                          ? '/images/hero-3d-step-2.webp'
+                          : '/images/hero-3d-step-3.webp'
                       }
                       alt={
                         activeWorkflowStep === 1
@@ -1069,6 +1101,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onLaunchApp }) => {
                       }
                       className="w-full h-[320px] sm:h-[400px] lg:h-[450px] object-cover transform transition-transform duration-700 group-hover:scale-[1.02] animate-in fade-in"
                       loading="lazy"
+                      decoding="async"
                     />
 
                     {/* Gradient Overlay */}
