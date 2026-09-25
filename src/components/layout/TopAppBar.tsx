@@ -101,16 +101,13 @@ export const TopAppBar: React.FC<TopAppBarProps> = ({
           ) : null
         ) : (
           <button
-            onClick={() => {
-              setVoiceNavActive(true);
-              window.dispatchEvent(new CustomEvent('ablefy-toggle-voice-nav'));
-            }}
+            onClick={() => setVoiceNavActive(!voiceNavActive)}
             className={`flex items-center gap-1 sm:gap-2 px-2.5 sm:px-3 py-1.5 sm:py-2 rounded-full border text-[10px] sm:text-xs font-bold shadow-xs transition-all shrink-0 active:scale-95 ${
               voiceNavActive
                 ? 'bg-slate-900 dark:bg-slate-800 text-cyan-300 border-cyan-500/50 shadow-[0_0_12px_rgba(6,182,212,0.25)]'
                 : 'bg-white dark:bg-slate-900 text-slate-700 dark:text-slate-300 border-slate-200 dark:border-slate-800 hover:bg-slate-50'
             }`}
-            title="Nyalakan Kontrol Navigasi Suara (V)"
+            title={voiceNavActive ? "Matikan Navigasi Suara (V)" : "Nyalakan Kontrol Navigasi Suara (V)"}
           >
             <Mic className="w-3.5 h-3.5 text-cyan-400 shrink-0" />
             <span className="hidden sm:inline">Navigasi Suara</span>

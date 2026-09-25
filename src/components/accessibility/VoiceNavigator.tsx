@@ -70,7 +70,6 @@ export const VoiceNavigator: React.FC<VoiceNavigatorProps> = ({ onNavigateTab, i
   // Listen for global voice nav toggle triggers (e.g. from TopAppBar or hotkeys)
   useEffect(() => {
     const handleToggleVoiceNav = () => {
-      setVoiceNavActive(true);
       voiceNavActiveRef.current = true;
       if (!isListeningRef.current) {
         listeningStartTimeRef.current = Date.now();
@@ -430,20 +429,13 @@ export const VoiceNavigator: React.FC<VoiceNavigatorProps> = ({ onNavigateTab, i
           return;
         }
 
-        // If a command was just executed, on mobile we return to standby
+        // Seamless auto-restart on both desktop and mobile
         const justExecutedCommand = Date.now() - lastCommandTimeRef.current < 2500;
-        if (isMobile && justExecutedCommand) {
-          setIsListening(false);
-          isListeningRef.current = false;
-          return;
-        }
-
-        // If within active listening window (45s on mobile, continuous on desktop), seamlessly restart recognition
-        const withinActiveWindow = !isMobile || (Date.now() - listeningStartTimeRef.current < 45000);
-        const shouldRestart = voiceNavActiveRef.current && !permissionErrorRef.current && !isLiveTranscribingRef.current && withinActiveWindow;
+        const shouldRestart = voiceNavActiveRef.current && !permissionErrorRef.current && !isLiveTranscribingRef.current;
 
         if (shouldRestart) {
           clearTimeout(restartTimeoutRef.current);
+          const delay = justExecutedCommand ? (isMobile ? 700 : 500) : (isMobile ? 150 : 250);
           restartTimeoutRef.current = setTimeout(() => {
             if (voiceNavActiveRef.current && isListeningRef.current && !permissionErrorRef.current && !isLiveTranscribingRef.current) {
               try {
@@ -453,7 +445,7 @@ export const VoiceNavigator: React.FC<VoiceNavigatorProps> = ({ onNavigateTab, i
                 isListeningRef.current = false;
               }
             }
-          }, isMobile ? 150 : 250);
+          }, delay);
         } else {
           setIsListening(false);
           isListeningRef.current = false;
@@ -493,27 +485,24 @@ export const VoiceNavigator: React.FC<VoiceNavigatorProps> = ({ onNavigateTab, i
     }
   };
 
-  const requestMicrophoneAccess = () => {
-    toggleListening();
-  };
-
-  // Re-engage voice recognition automatically when desktop app returns to foreground
+  // Re-engage voice recognition automatically when app returns to foreground
   useEffect(() => {
     const handleVisibilityChange = () => {
-      if (!isMobile && document.visibilityState === 'visible' && voiceNavActiveRef.current && !permissionErrorRef.current && !isLiveTranscribingRef.current) {
+      if (document.visibilityState === 'visible' && voiceNavActiveRef.current && !permissionErrorRef.current && !isLiveTranscribingRef.current) {
+        listeningStartTimeRef.current = Date.now();
         startRecognition();
       }
     };
     document.addEventListener('visibilitychange', handleVisibilityChange);
     return () => document.removeEventListener('visibilitychange', handleVisibilityChange);
-  }, [isMobile]);
+  }, []);
 
+  // Hands-free auto-start on desktop and mobile when voiceNavActive is enabled
   useEffect(() => {
     if (voiceNavActive) {
-      // On desktop, auto-start hands-free; on mobile, wait for user gesture tap
-      if (!isMobile) {
-        requestMicrophoneAccess();
-      }
+      voiceNavActiveRef.current = true;
+      listeningStartTimeRef.current = Date.now();
+      startRecognition();
     } else {
       clearTimeout(restartTimeoutRef.current);
       if (recognitionRef.current) {
@@ -523,6 +512,7 @@ export const VoiceNavigator: React.FC<VoiceNavigatorProps> = ({ onNavigateTab, i
         recognitionRef.current = null;
       }
       setIsListening(false);
+      isListeningRef.current = false;
       setLiveTranscript('');
       setSuccessMessage('');
       setPermissionError(null);
@@ -536,6 +526,29 @@ export const VoiceNavigator: React.FC<VoiceNavigatorProps> = ({ onNavigateTab, i
         } catch (_) {}
         recognitionRef.current = null;
       }
+    };
+  }, [voiceNavActive]);
+
+  // Mobile auto-engagement: If mobile browser gesture policy deferred cold-start recognition,
+  // engage immediately upon user's first touch/tap anywhere on screen
+  useEffect(() => {
+    if (!voiceNavActive) return;
+
+    const handleFirstInteraction = () => {
+      if (voiceNavActiveRef.current && !isListeningRef.current && !permissionErrorRef.current && !isLiveTranscribingRef.current) {
+        listeningStartTimeRef.current = Date.now();
+        startRecognition();
+      }
+    };
+
+    window.addEventListener('touchstart', handleFirstInteraction, { once: true, passive: true });
+    window.addEventListener('pointerdown', handleFirstInteraction, { once: true, passive: true });
+    window.addEventListener('click', handleFirstInteraction, { once: true, passive: true });
+
+    return () => {
+      window.removeEventListener('touchstart', handleFirstInteraction);
+      window.removeEventListener('pointerdown', handleFirstInteraction);
+      window.removeEventListener('click', handleFirstInteraction);
     };
   }, [voiceNavActive]);
 
@@ -746,7 +759,7 @@ export const VoiceNavigator: React.FC<VoiceNavigatorProps> = ({ onNavigateTab, i
                 variant="cyan"
               />
               <span className="text-[11px] text-slate-300 font-medium transition-opacity duration-300 truncate max-w-[130px] sm:max-w-[170px]">
-                {isListening ? (isMobile ? 'Mendengarkan...' : ROTATING_HINTS[hintIndex]) : 'Ketuk untuk bicara'}
+                {isListening ? (isMobile ? ROTATING_HINTS[hintIndex].replace('Katakan: ', '') : ROTATING_HINTS[hintIndex]) : 'Ketuk untuk bicara'}
               </span>
             </div>
           )}

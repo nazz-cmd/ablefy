@@ -435,6 +435,9 @@ export const AccessibilityProvider: React.FC<{ children: ReactNode }> = ({ child
       localStorage.setItem('ablefy_large_targets', 'true');
       localStorage.setItem('ablefy_tremor_shield', 'true');
       localStorage.setItem('ablefy_voice_nav', 'true');
+      if (typeof window !== 'undefined') {
+        window.dispatchEvent(new CustomEvent('ablefy-toggle-voice-nav'));
+      }
       speakText('Profil Keterbatasan Fisik dan Motorik aktif. Navigasi suara bebas tangan, target tombol besar, dan pelindung tremor diaktifkan.');
     } else if (persona === 'educator') {
       resetToDefault();
@@ -456,8 +459,13 @@ export const AccessibilityProvider: React.FC<{ children: ReactNode }> = ({ child
 
   const setVoiceNavActive = (enabled: boolean) => {
     setVoiceNavActiveState(enabled);
-    localStorage.setItem('ablefy_voice_nav', String(enabled));
+    try {
+      localStorage.setItem('ablefy_voice_nav', String(enabled));
+    } catch (_) {}
     speakCue(enabled ? 'Navigasi suara bebas tangan aktif' : 'Navigasi suara dinonaktifkan');
+    if (enabled && typeof window !== 'undefined') {
+      window.dispatchEvent(new CustomEvent('ablefy-toggle-voice-nav'));
+    }
   };
 
   const setContrastMode = (mode: ContrastMode) => {
