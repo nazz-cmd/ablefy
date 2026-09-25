@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   Search,
   BookOpen,
@@ -15,6 +15,10 @@ import {
   Check,
   MessageSquareQuote,
   Eye,
+  LayoutGrid,
+  List,
+  ChevronLeft,
+  ChevronRight,
 } from 'lucide-react';
 import { BISINDO_DATA, type SignItem } from '../../data/bisindoData';
 import { useAccessibility } from '../../context/AccessibilityContext';
@@ -27,6 +31,11 @@ export const SignHub: React.FC = () => {
   const [selectedCategory, setSelectedCategory] = useState<string>('semua');
   const [selectedDetailSign, setSelectedDetailSign] = useState<SignItem | null>(null);
 
+  // Pagination & View Mode for Kamus Tab
+  const [currentPage, setCurrentPage] = useState<number>(1);
+  const [pageSize, setPageSize] = useState<number>(12);
+  const [kamusViewMode, setKamusViewMode] = useState<'grid' | 'list'>('grid');
+
   // Sentence Builder State (General starter: Halo, Senang Bertemu, Belajar)
   const [sentenceSequence, setSentenceSequence] = useState<SignItem[]>([
     BISINDO_DATA[0],  // Halo / Hai
@@ -38,6 +47,11 @@ export const SignHub: React.FC = () => {
   const [playSpeed, setPlaySpeed] = useState<'normal' | 'slow'>('normal');
   const [isPlaying, setIsPlaying] = useState<boolean>(false);
   const [copied, setCopied] = useState<boolean>(false);
+
+  // Reset page when filter or search changes
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [searchQuery, selectedCategory, pageSize]);
 
   // Filtered Sign List for Dictionary Tab
   const dictionaryFilteredSigns = BISINDO_DATA.filter((item) => {
@@ -70,6 +84,31 @@ export const SignHub: React.FC = () => {
     emosi: BISINDO_DATA.filter((i) => i.category === 'emosi').length,
     waktu: BISINDO_DATA.filter((i) => i.category === 'waktu').length,
     abjad: BISINDO_DATA.filter((i) => i.category === 'abjad').length,
+  };
+
+  // Pagination logic for Kamus Tab
+  const totalDictionaryItems = dictionaryFilteredSigns.length;
+  const totalPages = pageSize === -1 ? 1 : Math.max(1, Math.ceil(totalDictionaryItems / pageSize));
+  const paginatedSigns = pageSize === -1
+    ? dictionaryFilteredSigns
+    : dictionaryFilteredSigns.slice((currentPage - 1) * pageSize, currentPage * pageSize);
+
+  const getPageNumbers = () => {
+    const pages: (number | string)[] = [];
+    if (totalPages <= 7) {
+      for (let i = 1; i <= totalPages; i++) pages.push(i);
+    } else {
+      pages.push(1);
+      if (currentPage > 3) pages.push('...');
+      const start = Math.max(2, currentPage - 1);
+      const end = Math.min(totalPages - 1, currentPage + 1);
+      for (let i = start; i <= end; i++) {
+        pages.push(i);
+      }
+      if (currentPage < totalPages - 2) pages.push('...');
+      pages.push(totalPages);
+    }
+    return pages;
   };
 
   // Add word to sentence
@@ -581,31 +620,87 @@ export const SignHub: React.FC = () => {
           {/* TAB 2: KAMUS KOSAKATA LENGKAP                            */}
           {/* ======================================================== */}
           {activeTab === 'kamus' && (
-            <div className="space-y-6">
-              {/* Search & Filter Toolbar */}
-              <div className="flex flex-col sm:flex-row gap-3 items-stretch sm:items-center justify-between bg-white dark:bg-slate-900 p-4 rounded-2xl border border-slate-200/90 dark:border-slate-800 shadow-xs">
-                <div className="relative flex-1 max-w-md">
-                  <Search className="w-4 h-4 text-slate-400 absolute left-3.5 top-3" />
-                  <input
-                    type="text"
-                    value={searchQuery}
-                    onChange={(e) => setSearchQuery(e.target.value)}
-                    placeholder="Cari kata isyarat, contoh kalimat, atau arti gestur..."
-                    className="w-full pl-10 pr-8 py-2 text-xs sm:text-sm rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-950 text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500 transition"
-                  />
-                  {searchQuery && (
-                    <button
-                      type="button"
-                      onClick={() => setSearchQuery('')}
-                      className="absolute right-3 top-2.5 text-slate-400 hover:text-slate-600"
-                    >
-                      <X className="w-4 h-4" />
-                    </button>
-                  )}
+            <div className="space-y-5">
+              {/* Search & Filter Toolbar: Clean 2-Tier Layout */}
+              <div className="bg-white dark:bg-slate-900 p-4 sm:p-5 rounded-3xl border border-slate-200/90 dark:border-slate-800 shadow-xs space-y-3.5">
+                {/* Tier 1: Search Input + View Mode Toggle + Page Size */}
+                <div className="flex flex-col sm:flex-row gap-3 items-stretch sm:items-center justify-between">
+                  {/* Search Bar */}
+                  <div className="relative flex-1">
+                    <Search className="w-4 h-4 text-slate-400 absolute left-3.5 top-3" />
+                    <input
+                      type="text"
+                      value={searchQuery}
+                      onChange={(e) => setSearchQuery(e.target.value)}
+                      placeholder="Cari kata isyarat, contoh kalimat, atau arti gestur..."
+                      className="w-full pl-10 pr-8 py-2 text-xs sm:text-sm rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-950 text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500 transition"
+                    />
+                    {searchQuery && (
+                      <button
+                        type="button"
+                        onClick={() => setSearchQuery('')}
+                        className="absolute right-3 top-2.5 text-slate-400 hover:text-slate-600"
+                        aria-label="Hapus pencarian"
+                      >
+                        <X className="w-4 h-4" />
+                      </button>
+                    )}
+                  </div>
+
+                  {/* Controls Cluster: View Mode & Page Size */}
+                  <div className="flex items-center gap-2 shrink-0">
+                    {/* View Mode Toggle: Grid vs List */}
+                    <div className="flex items-center bg-slate-100 dark:bg-slate-800 p-0.5 rounded-xl border border-slate-200/80 dark:border-slate-700">
+                      <button
+                        type="button"
+                        onClick={() => setKamusViewMode('grid')}
+                        className={`p-1.5 rounded-lg transition ${
+                          kamusViewMode === 'grid'
+                            ? 'bg-white dark:bg-slate-900 text-blue-600 dark:text-blue-400 shadow-2xs font-bold'
+                            : 'text-slate-500 hover:text-slate-800 dark:hover:text-slate-200'
+                        }`}
+                        title="Tampilan Grid Kartu"
+                        aria-label="Tampilan Grid Kartu"
+                      >
+                        <LayoutGrid className="w-4 h-4" />
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setKamusViewMode('list')}
+                        className={`p-1.5 rounded-lg transition ${
+                          kamusViewMode === 'list'
+                            ? 'bg-white dark:bg-slate-900 text-blue-600 dark:text-blue-400 shadow-2xs font-bold'
+                            : 'text-slate-500 hover:text-slate-800 dark:hover:text-slate-200'
+                        }`}
+                        title="Tampilan Daftar Ringkas"
+                        aria-label="Tampilan Daftar Ringkas"
+                      >
+                        <List className="w-4 h-4" />
+                      </button>
+                    </div>
+
+                    {/* Items Per Page Selector */}
+                    <div className="flex items-center bg-slate-100 dark:bg-slate-800 p-0.5 rounded-xl border border-slate-200/80 dark:border-slate-700 text-xs">
+                      {[12, 24, -1].map((size) => (
+                        <button
+                          key={size}
+                          type="button"
+                          onClick={() => setPageSize(size)}
+                          className={`px-2.5 py-1 rounded-lg font-bold transition ${
+                            pageSize === size
+                              ? 'bg-white dark:bg-slate-900 text-blue-600 dark:text-blue-400 shadow-2xs'
+                              : 'text-slate-500 hover:text-slate-800 dark:hover:text-slate-200'
+                          }`}
+                        >
+                          {size === -1 ? 'Semua' : `${size}/hal`}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
                 </div>
 
-                {/* Category Pills with Counters */}
-                <div className="flex flex-wrap gap-1.5 items-center">
+                {/* Tier 2: Category Pills with Counters (Horizontally scrollable, no wrap) */}
+                <div className="flex items-center gap-1.5 overflow-x-auto pb-1 no-scrollbar pt-1 border-t border-slate-100 dark:border-slate-800/80">
                   {[
                     { id: 'semua', label: 'Semua', count: categoryCounts.semua },
                     { id: 'sapaan', label: 'Sapaan', count: categoryCounts.sapaan },
@@ -620,7 +715,7 @@ export const SignHub: React.FC = () => {
                       key={cat.id}
                       type="button"
                       onClick={() => setSelectedCategory(cat.id)}
-                      className={`px-3 py-1.5 rounded-xl text-xs font-bold transition flex items-center gap-1.5 ${
+                      className={`px-3 py-1.5 rounded-xl text-xs font-bold transition shrink-0 flex items-center gap-1.5 ${
                         selectedCategory === cat.id
                           ? 'bg-blue-600 text-white shadow-2xs font-extrabold'
                           : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 hover:bg-slate-200 dark:hover:bg-slate-700'
@@ -641,97 +736,232 @@ export const SignHub: React.FC = () => {
                 </div>
               </div>
 
-              {/* Cards Grid */}
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-5">
-                {dictionaryFilteredSigns.map((sign) => (
-                  <div
-                    key={sign.id}
-                    className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200/90 dark:border-slate-800 p-5 shadow-xs flex flex-col justify-between hover:shadow-md hover:border-blue-400/80 transition-all duration-150"
-                  >
-                    <div>
-                      {/* Top Header */}
-                      <div className="flex items-center justify-between mb-3.5">
-                        <span className="text-3xl p-2.5 bg-slate-100 dark:bg-slate-800 rounded-2xl">
-                          {sign.visualCue}
-                        </span>
-                        <span className="px-2.5 py-0.5 text-[11px] font-bold uppercase rounded-full bg-blue-50 dark:bg-blue-950/60 text-blue-700 dark:text-blue-300 border border-blue-200/80 dark:border-blue-800">
-                          {sign.category}
-                        </span>
+              {/* MODE 1: GRID VIEW (Uniform Height Cards) */}
+              {kamusViewMode === 'grid' && paginatedSigns.length > 0 && (
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-5">
+                  {paginatedSigns.map((sign) => (
+                    <div
+                      key={sign.id}
+                      onClick={() => setInspectedSign(sign)}
+                      className="bg-white dark:bg-slate-900 rounded-3xl border border-slate-200/90 dark:border-slate-800 p-5 shadow-xs flex flex-col justify-between hover:shadow-md hover:border-blue-400/80 transition-all duration-150 cursor-pointer group"
+                    >
+                      <div>
+                        {/* Top Header */}
+                        <div className="flex items-center justify-between mb-3.5">
+                          <span className="text-3xl p-2.5 bg-slate-100 dark:bg-slate-800 rounded-2xl group-hover:scale-105 transition shadow-2xs select-none">
+                            {sign.visualCue}
+                          </span>
+                          <span className="px-2.5 py-0.5 text-[10px] font-bold uppercase rounded-full bg-blue-50 dark:bg-blue-950/60 text-blue-700 dark:text-blue-300 border border-blue-200/80 dark:border-blue-800">
+                            {sign.category}
+                          </span>
+                        </div>
+
+                        <h3 className="text-base font-extrabold text-slate-900 dark:text-white mb-1.5 group-hover:text-blue-600 dark:group-hover:text-blue-400 transition truncate">
+                          {sign.word}
+                        </h3>
+                        <p className="text-xs text-slate-600 dark:text-slate-300 mb-3 leading-relaxed line-clamp-2 min-h-[34px]">
+                          {sign.description}
+                        </p>
+
+                        {/* Linguistic Structure Pills */}
+                        <div className="space-y-1 mb-3.5 p-2.5 bg-slate-50/80 dark:bg-slate-950/60 rounded-xl border border-slate-100 dark:border-slate-800/80 text-[11px]">
+                          {sign.handshape && (
+                            <div className="text-slate-700 dark:text-slate-300 flex items-start gap-1.5 truncate">
+                              <span className="font-bold text-slate-500 dark:text-slate-400 shrink-0">Bentuk:</span>
+                              <span className="truncate">{sign.handshape}</span>
+                            </div>
+                          )}
+                          {sign.facialExpression && (
+                            <div className="text-slate-700 dark:text-slate-300 flex items-start gap-1.5 truncate">
+                              <span className="font-bold text-slate-500 dark:text-slate-400 shrink-0">Wajah:</span>
+                              <span className="truncate">{sign.facialExpression}</span>
+                            </div>
+                          )}
+                        </div>
+
+                        {/* Example sentence */}
+                        <div className="text-[11px] text-slate-500 dark:text-slate-400 italic mb-3 truncate">
+                          &ldquo;{sign.exampleSentence}&rdquo;
+                        </div>
                       </div>
 
-                      <h3 className="text-base font-bold text-slate-900 dark:text-white mb-1.5">
-                        {sign.word}
-                      </h3>
-                      <p className="text-xs text-slate-600 dark:text-slate-300 mb-3.5 leading-relaxed">
-                        {sign.description}
-                      </p>
-
-                      {/* Linguistic Structure Pills */}
-                      <div className="space-y-1.5 mb-3.5 p-3 bg-slate-50/70 dark:bg-slate-950/60 rounded-xl border border-slate-100 dark:border-slate-800/80 text-[11px]">
-                        {sign.handshape && (
-                          <div className="text-slate-700 dark:text-slate-300 flex items-start gap-1.5">
-                            <span className="font-bold text-slate-500 dark:text-slate-400 shrink-0">Bentuk:</span>
-                            <span className="truncate">{sign.handshape}</span>
-                          </div>
-                        )}
-                        {sign.facialExpression && (
-                          <div className="text-slate-700 dark:text-slate-300 flex items-start gap-1.5">
-                            <span className="font-bold text-slate-500 dark:text-slate-400 shrink-0">Wajah:</span>
-                            <span className="truncate">{sign.facialExpression}</span>
-                          </div>
-                        )}
-                      </div>
-
-                      {/* Example sentence */}
-                      <div className="text-[11px] text-slate-500 dark:text-slate-400 italic mb-3">
-                        &ldquo;{sign.exampleSentence}&rdquo;
-                      </div>
-                    </div>
-
-                    {/* Bottom Actions */}
-                    <div className="pt-3 border-t border-slate-100 dark:border-slate-800 flex items-center justify-between gap-2">
-                      <button
-                        type="button"
-                        onClick={() =>
-                          speakText(
-                            `Isyarat kata: ${sign.word}. ${sign.description}. Contoh: ${sign.exampleSentence}`
-                          )
-                        }
-                        className="flex items-center gap-1.5 text-xs text-blue-600 dark:text-blue-400 hover:underline font-semibold"
-                      >
-                        <Volume2 className="w-3.5 h-3.5" />
-                        <span>Dengar Suara</span>
-                      </button>
-
-                      <div className="flex items-center gap-1.5">
+                      {/* Bottom Actions */}
+                      <div className="pt-3 border-t border-slate-100 dark:border-slate-800 flex items-center justify-between gap-2">
                         <button
                           type="button"
-                          onClick={() => setSelectedDetailSign(sign)}
-                          className="px-2.5 py-1.5 rounded-lg border border-slate-200 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-800 text-xs font-semibold text-slate-700 dark:text-slate-300 transition"
-                          title="Lihat detail lengkap panduan gerak"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            speakText(
+                              `Isyarat kata: ${sign.word}. ${sign.description}. Contoh: ${sign.exampleSentence}`
+                            );
+                          }}
+                          className="flex items-center gap-1.5 text-xs text-blue-600 dark:text-blue-400 hover:underline font-semibold"
+                        >
+                          <Volume2 className="w-3.5 h-3.5" />
+                          <span>Dengar</span>
+                        </button>
+
+                        <div className="flex items-center gap-1.5">
+                          <button
+                            type="button"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setSelectedDetailSign(sign);
+                            }}
+                            className="px-2.5 py-1.5 rounded-lg border border-slate-200 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-800 text-xs font-semibold text-slate-700 dark:text-slate-300 transition"
+                            title="Lihat detail lengkap panduan gerak"
+                          >
+                            Detail
+                          </button>
+                          <button
+                            type="button"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleAddToSentence(sign);
+                              setActiveTab('builder');
+                            }}
+                            className="px-2.5 py-1.5 rounded-lg bg-blue-50 dark:bg-blue-950/60 hover:bg-blue-100 text-blue-600 dark:text-blue-300 text-xs font-bold transition flex items-center gap-1"
+                            title="Tambahkan ke papan kalimat"
+                          >
+                            <Plus className="w-3.5 h-3.5" />
+                            <span>Papan</span>
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+
+              {/* MODE 2: COMPACT LIST VIEW (Super Space-Saving) */}
+              {kamusViewMode === 'list' && paginatedSigns.length > 0 && (
+                <div className="bg-white dark:bg-slate-900 rounded-3xl border border-slate-200/90 dark:border-slate-800 overflow-hidden divide-y divide-slate-100 dark:divide-slate-800 shadow-xs">
+                  {paginatedSigns.map((sign) => (
+                    <div
+                      key={sign.id}
+                      onClick={() => setInspectedSign(sign)}
+                      className="p-3 sm:px-4.5 sm:py-3.5 flex items-center justify-between gap-3 hover:bg-slate-50/80 dark:hover:bg-slate-800/50 transition cursor-pointer group"
+                    >
+                      <div className="flex items-center gap-3 min-w-0">
+                        <span className="text-2xl p-1.5 bg-slate-100 dark:bg-slate-800 rounded-xl shrink-0 group-hover:scale-105 transition shadow-2xs select-none">
+                          {sign.visualCue}
+                        </span>
+                        <div className="min-w-0">
+                          <div className="flex items-center gap-2">
+                            <h4 className="text-xs sm:text-sm font-bold text-slate-900 dark:text-white truncate group-hover:text-blue-600 transition">
+                              {sign.word}
+                            </h4>
+                            <span className="px-2 py-0.5 text-[10px] font-bold uppercase rounded-full bg-blue-50 dark:bg-blue-950/60 text-blue-700 dark:text-blue-300 border border-blue-200/60 dark:border-blue-800/60 shrink-0">
+                              {sign.category}
+                            </span>
+                          </div>
+                          <p className="text-xs text-slate-500 dark:text-slate-400 truncate max-w-sm sm:max-w-md mt-0.5">
+                            {sign.description}
+                          </p>
+                        </div>
+                      </div>
+
+                      <div className="flex items-center gap-1.5 shrink-0">
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            speakText(`Isyarat ${sign.word}. ${sign.description}`);
+                          }}
+                          className="p-1.5 sm:p-2 rounded-xl text-slate-500 hover:text-blue-600 hover:bg-blue-50 dark:hover:bg-blue-950/60 transition"
+                          title="Dengar Suara"
+                          aria-label="Dengar Suara"
+                        >
+                          <Volume2 className="w-4 h-4" />
+                        </button>
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setSelectedDetailSign(sign);
+                          }}
+                          className="px-2.5 py-1.5 rounded-lg border border-slate-200 dark:border-slate-700 hover:bg-slate-100 dark:hover:bg-slate-800 text-xs font-semibold text-slate-700 dark:text-slate-300 transition"
                         >
                           Detail
                         </button>
                         <button
                           type="button"
-                          onClick={() => {
+                          onClick={(e) => {
+                            e.stopPropagation();
                             handleAddToSentence(sign);
                             setActiveTab('builder');
                           }}
                           className="px-2.5 py-1.5 rounded-lg bg-blue-50 dark:bg-blue-950/60 hover:bg-blue-100 text-blue-600 dark:text-blue-300 text-xs font-bold transition flex items-center gap-1"
-                          title="Tambahkan ke papan kalimat"
                         >
                           <Plus className="w-3.5 h-3.5" />
-                          <span>Papan</span>
+                          <span className="hidden sm:inline">Papan</span>
                         </button>
                       </div>
                     </div>
-                  </div>
-                ))}
-              </div>
+                  ))}
+                </div>
+              )}
 
+              {/* SMART PAGINATION CONTROLS */}
+              {totalPages > 1 && (
+                <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200/90 dark:border-slate-800 p-3.5 sm:px-5 flex flex-col sm:flex-row items-center justify-between gap-3 shadow-2xs">
+                  <div className="text-xs text-slate-500 dark:text-slate-400 font-medium">
+                    Menampilkan <span className="font-bold text-slate-800 dark:text-slate-200">{(currentPage - 1) * pageSize + 1}</span> - <span className="font-bold text-slate-800 dark:text-slate-200">{Math.min(currentPage * pageSize, totalDictionaryItems)}</span> dari <span className="font-bold text-slate-800 dark:text-slate-200">{totalDictionaryItems}</span> kosakata
+                  </div>
+
+                  <div className="flex items-center gap-1.5">
+                    {/* Previous Button */}
+                    <button
+                      type="button"
+                      onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
+                      disabled={currentPage === 1}
+                      className="p-1.5 sm:p-2 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-600 dark:text-slate-400 disabled:opacity-30 hover:bg-slate-50 dark:hover:bg-slate-800 transition disabled:cursor-not-allowed"
+                      title="Halaman Sebelumnya"
+                      aria-label="Halaman Sebelumnya"
+                    >
+                      <ChevronLeft className="w-4 h-4" />
+                    </button>
+
+                    {/* Page Numbers */}
+                    {getPageNumbers().map((page, idx) =>
+                      typeof page === 'number' ? (
+                        <button
+                          key={idx}
+                          type="button"
+                          onClick={() => setCurrentPage(page)}
+                          className={`w-7 h-7 sm:w-8 sm:h-8 rounded-xl text-xs font-bold transition ${
+                            currentPage === page
+                              ? 'bg-blue-600 text-white shadow-xs'
+                              : 'border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800'
+                          }`}
+                        >
+                          {page}
+                        </button>
+                      ) : (
+                        <span key={idx} className="px-1 text-slate-400 text-xs">
+                          ...
+                        </span>
+                      )
+                    )}
+
+                    {/* Next Button */}
+                    <button
+                      type="button"
+                      onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
+                      disabled={currentPage === totalPages}
+                      className="p-1.5 sm:p-2 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-600 dark:text-slate-400 disabled:opacity-30 hover:bg-slate-50 dark:hover:bg-slate-800 transition disabled:cursor-not-allowed"
+                      title="Halaman Selanjutnya"
+                      aria-label="Halaman Selanjutnya"
+                    >
+                      <ChevronRight className="w-4 h-4" />
+                    </button>
+                  </div>
+                </div>
+              )}
+
+              {/* Empty State */}
               {dictionaryFilteredSigns.length === 0 && (
-                <div className="p-12 text-center bg-white dark:bg-slate-900 rounded-2xl border border-dashed border-slate-300 dark:border-slate-700">
+                <div className="p-12 text-center bg-white dark:bg-slate-900 rounded-3xl border border-dashed border-slate-300 dark:border-slate-700 shadow-xs">
                   <BookOpen className="w-8 h-8 text-slate-400 mx-auto mb-2" />
                   <h4 className="text-sm font-bold text-slate-800 dark:text-white">
                     Kosakata Tidak Ditemukan
