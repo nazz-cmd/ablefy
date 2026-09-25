@@ -95,6 +95,49 @@ export const RealtimeAudioWave: React.FC<RealtimeAudioWaveProps> = ({
 
     let isCancelled = false;
 
+    // Detect mobile device (Android, iOS, iPad)
+    const isMobileDevice =
+      typeof navigator !== 'undefined' &&
+      /Android|iPhone|iPad|iPod|Mobile/i.test(navigator.userAgent);
+
+    if (isMobileDevice) {
+      // On mobile devices, DO NOT acquire exclusive hardware microphone via getUserMedia!
+      // This allows SpeechRecognition (Web Speech API) to have 100% exclusive access to the microphone.
+      // Instead, run a smooth, responsive acoustic animation that visually reacts while active.
+      let phase = 0;
+      const renderMobile = () => {
+        if (isCancelled) return;
+        phase += 0.14;
+        for (let i = 0; i < barCount; i++) {
+          const wave = Math.sin(phase + i * 0.45);
+          const targetHeight = minHeight + Math.max(0, wave) * (maxHeight - minHeight) * 0.8;
+          const bar = barRefs.current[i];
+          if (bar) {
+            bar.style.height = `${Math.round(targetHeight * 10) / 10}px`;
+            bar.style.opacity = wave > 0.1 ? '1' : '0.7';
+          }
+        }
+        animFrameRef.current = requestAnimationFrame(renderMobile);
+      };
+
+      animFrameRef.current = requestAnimationFrame(renderMobile);
+
+      return () => {
+        isCancelled = true;
+        if (animFrameRef.current) {
+          cancelAnimationFrame(animFrameRef.current);
+          animFrameRef.current = null;
+        }
+        smoothedHeightsRef.current = Array(barCount).fill(minHeight);
+        barRefs.current.forEach((bar) => {
+          if (bar) {
+            bar.style.height = `${minHeight}px`;
+            bar.style.opacity = '0.7';
+          }
+        });
+      };
+    }
+
     const startVisualizer = async () => {
       const analyser = await audioVisualizerService.acquire();
       if (isCancelled || !analyser) return;

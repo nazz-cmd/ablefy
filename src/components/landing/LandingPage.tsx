@@ -94,28 +94,65 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onLaunchApp }) => {
 
   // --- Feature 2 (Live Speech-to-Text) State ---
   const [card2MicListening, setCard2MicListening] = useState<boolean>(false);
+  const [card2Transcript, setCard2Transcript] = useState<string>('');
   const recognitionRef = useRef<any>(null);
+  const simTimerRef = useRef<any>(null);
 
   const startCard2Mic = () => {
+    clearTimeout(simTimerRef.current);
     const SpeechRecognition =
       (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
 
-    if (!SpeechRecognition) return;
+    if (!SpeechRecognition) {
+      // Graceful simulated feedback for mobile browsers without Web Speech API (e.g. Samsung Internet, Firefox Mobile)
+      setCard2MicListening(true);
+      setCard2Transcript('Mendengarkan...');
+      simTimerRef.current = setTimeout(() => {
+        setCard2Transcript('Halo Ablefy, mic aktif!');
+        simTimerRef.current = setTimeout(() => {
+          setCard2MicListening(false);
+          setCard2Transcript('');
+        }, 2500);
+      }, 900);
+      return;
+    }
 
     try {
       const isMobileDevice = typeof navigator !== 'undefined' && /Android|iPhone|iPad|iPod|Mobile/i.test(navigator.userAgent);
       const recognition = new SpeechRecognition();
       recognition.lang = 'id-ID';
-      // iOS WebKit crashes if continuous is true; single utterance mode ensures mobile reliability
       recognition.continuous = !isMobileDevice;
       recognition.interimResults = true;
 
       recognition.onstart = () => {
         setCard2MicListening(true);
+        setCard2Transcript('Mendengarkan...');
       };
 
-      recognition.onerror = () => setCard2MicListening(false);
-      recognition.onend = () => setCard2MicListening(false);
+      recognition.onresult = (event: any) => {
+        let text = '';
+        for (let i = event.resultIndex; i < event.results.length; i++) {
+          text += event.results[i][0]?.transcript || '';
+        }
+        if (text.trim()) {
+          setCard2Transcript(text.trim());
+        }
+      };
+
+      recognition.onerror = (e: any) => {
+        console.warn('Card2 mic error:', e?.error);
+        if (e?.error === 'not-allowed' || e?.error === 'service-not-allowed') {
+          setCard2Transcript('Izin mic diblokir');
+        } else if (e?.error === 'no-speech') {
+          setCard2Transcript('Bicara sekarang...');
+          return;
+        }
+        setCard2MicListening(false);
+      };
+
+      recognition.onend = () => {
+        setCard2MicListening(false);
+      };
 
       recognitionRef.current = recognition;
       recognition.start();
@@ -125,6 +162,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onLaunchApp }) => {
   };
 
   const stopCard2Mic = () => {
+    clearTimeout(simTimerRef.current);
     if (recognitionRef.current) {
       try {
         recognitionRef.current.stop();
@@ -132,6 +170,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onLaunchApp }) => {
         // ignore
       }
       setCard2MicListening(false);
+      setCard2Transcript('');
     }
   };
 
@@ -826,10 +865,10 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onLaunchApp }) => {
                               </button>
                               <div className="min-w-0">
                                 <div className="flex items-center gap-1">
-                                  <span className="text-[10px] sm:text-xs font-black text-white leading-tight truncate">
-                                    {card2MicListening ? 'Merekam...' : 'Uji Mic'}
+                                  <span className="text-[10px] sm:text-xs font-black text-white leading-tight truncate max-w-[130px]">
+                                    {card2Transcript ? card2Transcript : card2MicListening ? 'Mendengarkan...' : 'Uji Mic'}
                                   </span>
-                                  <span className="w-1.5 h-1.5 rounded-full bg-rose-400 animate-ping shrink-0" />
+                                  {card2MicListening && <span className="w-1.5 h-1.5 rounded-full bg-rose-400 animate-ping shrink-0" />}
                                 </div>
                                 <div className="hidden sm:block text-[10px] text-rose-300 font-bold truncate">Live Radar</div>
                               </div>

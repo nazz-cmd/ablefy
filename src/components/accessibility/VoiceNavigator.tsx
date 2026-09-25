@@ -392,18 +392,25 @@ export const VoiceNavigator: React.FC<VoiceNavigatorProps> = ({ onNavigateTab, i
       recognition.onerror = (event: any) => {
         console.warn('VoiceNavigator speech error:', event?.error);
         if (event.error === 'not-allowed' || event.error === 'service-not-allowed') {
-          // If error happened while listening was not active, report permission blocked
-          if (!isListeningRef.current) {
-            setPermissionError('Akses mikrofon diblokir. Klik ikon gembok di sebelah URL browser untuk mengizinkan mikrofon.');
-            permissionErrorRef.current = 'blocked';
-          }
+          setPermissionError('Akses mikrofon diblokir. Klik ikon gembok di sebelah URL browser untuk mengizinkan mikrofon.');
+          permissionErrorRef.current = 'blocked';
           setIsListening(false);
           isListeningRef.current = false;
           return;
         }
         if (event.error === 'network') {
-          setLiveTranscript('Koneksi layanan suara terputus');
+          setLiveTranscript('Koneksi layanan suara lambat');
           setTimeout(() => setLiveTranscript(''), 2000);
+          return;
+        }
+        if (event.error === 'no-speech') {
+          // 'no-speech' is a normal silence timeout on mobile browsers!
+          // DO NOT kill listening state; allow onend to gracefully recover and keep listening.
+          return;
+        }
+        if (event.error === 'audio-capture' || event.error === 'aborted') {
+          // Hardware buffer flush or brief interruption, allow onend to recover
+          return;
         }
         setIsListening(false);
         isListeningRef.current = false;
@@ -431,8 +438,8 @@ export const VoiceNavigator: React.FC<VoiceNavigatorProps> = ({ onNavigateTab, i
           return;
         }
 
-        // If within active listening window (or on desktop continuously), seamlessly restart recognition
-        const withinActiveWindow = !isMobile || (Date.now() - listeningStartTimeRef.current < 15000);
+        // If within active listening window (45s on mobile, continuous on desktop), seamlessly restart recognition
+        const withinActiveWindow = !isMobile || (Date.now() - listeningStartTimeRef.current < 45000);
         const shouldRestart = voiceNavActiveRef.current && !permissionErrorRef.current && !isLiveTranscribingRef.current && withinActiveWindow;
 
         if (shouldRestart) {
@@ -446,7 +453,7 @@ export const VoiceNavigator: React.FC<VoiceNavigatorProps> = ({ onNavigateTab, i
                 isListeningRef.current = false;
               }
             }
-          }, 250);
+          }, isMobile ? 150 : 250);
         } else {
           setIsListening(false);
           isListeningRef.current = false;

@@ -728,6 +728,7 @@ export const LectureCompanion: React.FC = () => {
       recognition.onstart = () => {
         setIsListening(true);
         isListeningRef.current = true;
+        setInterimSpeech('Mendengarkan ucapan pemateri...');
       };
 
       recognition.onresult = (event: any) => {
