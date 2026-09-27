@@ -103,6 +103,23 @@ export const VoiceNavigator: React.FC<VoiceNavigatorProps> = ({ onNavigateTab, i
     return () => window.removeEventListener('ablefy-recording-status', handleRecordingStatus);
   }, []);
 
+  // Listen to system audio and voice cues (Panduan Suara) to prevent voice collision
+  const isSystemSpeakingRef = useRef<boolean>(false);
+  const lastSystemSpeakingEndTimeRef = useRef<number>(0);
+
+  useEffect(() => {
+    const handleSystemSpeaking = (e: Event) => {
+      const customEvent = e as CustomEvent<{ speaking: boolean; text?: string }>;
+      const isSpk = !!customEvent.detail?.speaking;
+      isSystemSpeakingRef.current = isSpk;
+      if (!isSpk) {
+        lastSystemSpeakingEndTimeRef.current = Date.now();
+      }
+    };
+    window.addEventListener('ablefy-system-speaking', handleSystemSpeaking);
+    return () => window.removeEventListener('ablefy-system-speaking', handleSystemSpeaking);
+  }, []);
+
   // Rotate helpful voice hints periodically when idle
   useEffect(() => {
     if (!isListening || liveTranscript || successMessage) return;
@@ -214,14 +231,31 @@ export const VoiceNavigator: React.FC<VoiceNavigatorProps> = ({ onNavigateTab, i
   const processCommand = (phrase: string): boolean => {
     const phraseLower = phrase.toLowerCase().trim();
 
-    // 1. Two-way echo suppression: filter audio feedback ONLY if Ablefy is currently speaking right now
+    // 1. Two-way echo suppression: filter audio feedback from Panduan Suara & system TTS
     const now = Date.now();
-    const isCurrentlySpeaking = isSpeaking || (now - lastSpokenResponseTimeRef.current < 1800);
+    const isBrowserSpeaking = typeof window !== 'undefined' && Boolean(window.speechSynthesis && window.speechSynthesis.speaking);
+    const isCurrentlySpeaking = isSpeaking || isSystemSpeakingRef.current || isBrowserSpeaking || (now - lastSpokenResponseTimeRef.current < 1800) || (now - lastSystemSpeakingEndTimeRef.current < 900);
+
+    // Check against recent screen reader cues in the last 6 seconds
+    const recentCues: Array<{ text: string; time: number }> = (typeof window !== 'undefined' && (window as any).__ablefyRecentCues) || [];
+    const isMatchingRecentCue = recentCues.some(c => 
+      now - c.time < 5500 && (
+        phraseLower.includes(c.text) || 
+        c.text.includes(phraseLower) ||
+        (phraseLower.length >= 4 && c.text.split(/\s+/).some(w => phraseLower.includes(w) && w.length >= 4))
+      )
+    );
+
     if (isCurrentlySpeaking && lastSpokenResponseRef.current) {
       const spokenLower = lastSpokenResponseRef.current.toLowerCase();
-      if (phraseLower === spokenLower || (phraseLower.length > 5 && spokenLower.includes(phraseLower))) {
+      if (phraseLower === spokenLower || (phraseLower.length > 4 && spokenLower.includes(phraseLower))) {
         return false;
       }
+    }
+
+    if (isCurrentlySpeaking || isMatchingRecentCue) {
+      // Audio originated from Panduan Suara or system voice, ignore so features don't collide
+      return false;
     }
 
     // 2. High-level NLP Intent Classification (Indonesian Conversational AI)
@@ -347,11 +381,31 @@ export const VoiceNavigator: React.FC<VoiceNavigatorProps> = ({ onNavigateTab, i
         final = final.trim();
         interim = interim.trim();
 
-        // 1. Display real-time spoken text preview in glowing cyan
         const currentSpeech = (final || interim).trim();
-        if (currentSpeech) {
-          setLiveTranscript(currentSpeech);
+        if (!currentSpeech) return;
+
+        // Check if device is actively speaking (Panduan Suara, screen reader cue, or TTS)
+        const now = Date.now();
+        const isBrowserSpeaking = typeof window !== 'undefined' && Boolean(window.speechSynthesis && window.speechSynthesis.speaking);
+        const isDeviceSpeaking = isSpeaking || isSystemSpeakingRef.current || isBrowserSpeaking || (now - lastSystemSpeakingEndTimeRef.current < 900) || (now - lastSpokenResponseTimeRef.current < 1200);
+
+        const currentLower = currentSpeech.toLowerCase();
+        const recentCues: Array<{ text: string; time: number }> = (typeof window !== 'undefined' && (window as any).__ablefyRecentCues) || [];
+        const isMatchingRecentCue = recentCues.some(c => 
+          now - c.time < 5000 && (
+            currentLower.includes(c.text) || 
+            c.text.includes(currentLower) ||
+            (currentLower.length >= 4 && c.text.split(/\s+/).some(w => currentLower.includes(w) && w.length >= 4))
+          )
+        );
+
+        if (isDeviceSpeaking || isMatchingRecentCue) {
+          // System speech feedback: ignore cleanly without disabling Kontrol Suara
+          return;
         }
+
+        // 1. Display real-time spoken text preview in glowing cyan
+        setLiveTranscript(currentSpeech);
 
         // 2. High-speed immediate intent matching:
         // If current speech already contains a recognized command, execute immediately!

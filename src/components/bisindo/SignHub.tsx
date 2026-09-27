@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
   Search,
   BookOpen,
@@ -6,6 +6,7 @@ import {
   Volume2,
   Plus,
   Play,
+  Square,
   Trash2,
   PanelRightClose,
   PanelRightOpen,
@@ -24,7 +25,7 @@ import { BISINDO_DATA, type SignItem } from '../../data/bisindoData';
 import { useAccessibility } from '../../context/AccessibilityContext';
 
 export const SignHub: React.FC = () => {
-  const { speakText, isRightPanelOpen, toggleRightPanel } = useAccessibility();
+  const { speakText, stopSpeech, isRightPanelOpen, toggleRightPanel } = useAccessibility();
   const [activeTab, setActiveTab] = useState<'kamus' | 'builder'>('builder');
   const [searchQuery, setSearchQuery] = useState('');
   const [paletteSearchQuery, setPaletteSearchQuery] = useState('');
@@ -146,9 +147,37 @@ export const SignHub: React.FC = () => {
     speakText(`Memuat contoh kalimat isyarat: ${presetName}`);
   };
 
-  // Play sentence sequence with speed control
+  const playTimerRef = useRef<any>(null);
+
+  useEffect(() => {
+    return () => {
+      if (playTimerRef.current) {
+        clearInterval(playTimerRef.current);
+      }
+    };
+  }, []);
+
+  const handleStopSequence = () => {
+    if (playTimerRef.current) {
+      clearInterval(playTimerRef.current);
+      playTimerRef.current = null;
+    }
+    setIsPlaying(false);
+    setPlayingIndex(-1);
+    stopSpeech();
+  };
+
+  // Play sentence sequence with speed control and stop capability
   const handlePlaySequence = () => {
-    if (sentenceSequence.length === 0 || isPlaying) return;
+    if (sentenceSequence.length === 0) return;
+    if (isPlaying) {
+      handleStopSequence();
+      return;
+    }
+
+    if (playTimerRef.current) {
+      clearInterval(playTimerRef.current);
+    }
 
     setIsPlaying(true);
     setPlayingIndex(0);
@@ -157,14 +186,17 @@ export const SignHub: React.FC = () => {
 
     const stepInterval = playSpeed === 'slow' ? 2400 : 1600;
     let idx = 0;
-    const timer = setInterval(() => {
+    playTimerRef.current = setInterval(() => {
       idx++;
       if (idx < sentenceSequence.length) {
         setPlayingIndex(idx);
         setInspectedSign(sentenceSequence[idx]);
         speakText(sentenceSequence[idx].word);
       } else {
-        clearInterval(timer);
+        if (playTimerRef.current) {
+          clearInterval(playTimerRef.current);
+          playTimerRef.current = null;
+        }
         setPlayingIndex(-1);
         setIsPlaying(false);
       }
@@ -315,15 +347,26 @@ export const SignHub: React.FC = () => {
                       </button>
                     </div>
 
-                    {/* Play Button */}
+                    {/* Play / Stop Button */}
                     <button
                       type="button"
                       onClick={handlePlaySequence}
-                      disabled={sentenceSequence.length === 0 || isPlaying}
-                      className="flex items-center gap-2 px-4 py-2 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs shadow-xs disabled:opacity-40 transition active:scale-95 shrink-0"
+                      disabled={sentenceSequence.length === 0}
+                      className={`flex items-center gap-2 px-4 py-2 rounded-xl text-white font-bold text-xs shadow-xs disabled:opacity-40 transition active:scale-95 shrink-0 ${
+                        isPlaying ? 'bg-rose-600 hover:bg-rose-700' : 'bg-blue-600 hover:bg-blue-700'
+                      }`}
                     >
-                      <Play className="w-3.5 h-3.5 fill-white" />
-                      <span>{isPlaying ? 'Memutar...' : 'Putar Berurutan'}</span>
+                      {isPlaying ? (
+                        <>
+                          <Square className="w-3.5 h-3.5 fill-white" />
+                          <span>Hentikan</span>
+                        </>
+                      ) : (
+                        <>
+                          <Play className="w-3.5 h-3.5 fill-white" />
+                          <span>Putar Berurutan</span>
+                        </>
+                      )}
                     </button>
 
                     {/* Clear Button */}
@@ -341,7 +384,10 @@ export const SignHub: React.FC = () => {
                 </div>
 
                 {/* Sequence Words Stream Canvas */}
-                <div className="mt-4 p-4 sm:p-5 bg-slate-50/70 dark:bg-slate-950/50 rounded-2xl border border-slate-200/80 dark:border-slate-800 min-h-[160px] flex items-center justify-center">
+                <div 
+                  style={{ contain: 'paint' }}
+                  className="mt-4 p-4 sm:p-5 bg-slate-50/70 dark:bg-slate-950/50 rounded-2xl border border-slate-200/80 dark:border-slate-800 min-h-[160px] flex items-center justify-center transform-gpu"
+                >
                   {sentenceSequence.length > 0 ? (
                     <div className="w-full flex flex-wrap items-center gap-2 sm:gap-3">
                       {sentenceSequence.map((item, idx) => {
@@ -352,9 +398,9 @@ export const SignHub: React.FC = () => {
                             {/* Word Card in Stream */}
                             <div
                               onClick={() => setInspectedSign(item)}
-                              className={`relative group flex flex-col justify-between p-3 sm:p-3.5 rounded-2xl border transition-all duration-200 cursor-pointer min-w-[110px] sm:min-w-[124px] max-w-[140px] ${
+                              className={`relative group flex flex-col justify-between p-3 sm:p-3.5 rounded-2xl border transition-colors duration-150 cursor-pointer min-w-[110px] sm:min-w-[124px] max-w-[140px] transform-gpu ${
                                 isCurrentPlaying
-                                  ? 'border-blue-600 bg-blue-50/90 dark:bg-blue-950/80 scale-105 shadow-md ring-2 ring-blue-500'
+                                  ? 'border-blue-600 bg-blue-50 dark:bg-blue-950/80 shadow-md ring-2 ring-blue-500 font-bold'
                                   : isSelected
                                   ? 'border-blue-400 bg-white dark:bg-slate-900 shadow-sm ring-1 ring-blue-400/50'
                                   : 'border-slate-200/90 dark:border-slate-800 bg-white dark:bg-slate-900 shadow-2xs hover:border-slate-300 dark:hover:border-slate-700 hover:shadow-xs'
@@ -979,7 +1025,7 @@ export const SignHub: React.FC = () => {
         {/* RIGHT COLUMN: Live Sign Inspector & Etiquette Companion  */}
         {/* ======================================================== */}
         <aside
-          className={`w-full shrink-0 transition-all duration-300 ease-[cubic-bezier(0.16,1,0.3,1)] select-none ${
+          className={`w-full shrink-0 lg:transition-all lg:duration-300 ease-[cubic-bezier(0.16,1,0.3,1)] select-none ${
             isRightPanelOpen ? 'lg:w-[320px] xl:w-[340px]' : 'lg:w-14'
           }`}
           aria-label="Panel Panduan & Asisten Isyarat"

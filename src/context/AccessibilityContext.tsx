@@ -340,6 +340,20 @@ export const AccessibilityProvider: React.FC<{ children: ReactNode }> = ({ child
     setIsSpeaking(false);
   };
 
+  // Record recent spoken cues globally to prevent VoiceNavigator / Kontrol Suara acoustic feedback
+  const recordRecentCue = (text: string) => {
+    if (typeof window === 'undefined') return;
+    const clean = text.toLowerCase().trim();
+    if (!clean) return;
+    if (!(window as any).__ablefyRecentCues) {
+      (window as any).__ablefyRecentCues = [];
+    }
+    const list = (window as any).__ablefyRecentCues;
+    list.push({ text: clean, time: Date.now() });
+    // Keep only cues spoken in the last 6 seconds
+    (window as any).__ablefyRecentCues = list.filter((item: any) => Date.now() - item.time < 6000);
+  };
+
   // Zero-latency local Web Speech synthesis for instant UI navigation cues (0-10ms delay, no network lag)
   const speakInstantCue = (text: string) => {
     if (typeof window === 'undefined' || !('speechSynthesis' in window)) return;
@@ -357,6 +371,29 @@ export const AccessibilityProvider: React.FC<{ children: ReactNode }> = ({ child
       if (idVoice) {
         utterance.voice = idVoice;
       }
+
+      utterance.onstart = () => {
+        setIsSpeaking(true);
+        if (typeof window !== 'undefined') {
+          window.dispatchEvent(new CustomEvent('ablefy-system-speaking', { detail: { speaking: true, text } }));
+        }
+      };
+
+      utterance.onend = () => {
+        setIsSpeaking(false);
+        if (typeof window !== 'undefined') {
+          window.dispatchEvent(new CustomEvent('ablefy-system-speaking', { detail: { speaking: false, text } }));
+        }
+      };
+
+      utterance.onerror = () => {
+        setIsSpeaking(false);
+        if (typeof window !== 'undefined') {
+          window.dispatchEvent(new CustomEvent('ablefy-system-speaking', { detail: { speaking: false, text } }));
+        }
+      };
+
+      recordRecentCue(text);
       window.speechSynthesis.speak(utterance);
     } catch (err) {
       console.warn('speakInstantCue error:', err);
@@ -373,6 +410,7 @@ export const AccessibilityProvider: React.FC<{ children: ReactNode }> = ({ child
     if (!cleanText) return;
     lastSpokenCueTimeRef.current = Date.now();
     lastSpokenCueTextRef.current = cleanText.toLowerCase();
+    recordRecentCue(cleanText);
     speakInstantCue(cleanText);
   };
 

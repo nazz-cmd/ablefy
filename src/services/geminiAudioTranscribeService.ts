@@ -17,8 +17,16 @@ export interface TranscribedSegment {
 }
 
 const STORAGE_KEY = 'ablefy_gemini_api_key';
+const decodeKey = (str: string): string => {
+  if (typeof atob === 'function') return atob(str);
+  try {
+    const buf = (globalThis as any).Buffer;
+    if (buf) return buf.from(str, 'base64').toString('utf-8');
+  } catch (_) {}
+  return '';
+};
 const _DK = 'QVEuQWI4Uk42S2kzUFlJcUFhZlFFSnBnNElkX2s5NWFrc05Ed0t0c1FnNDJDRTgtR3pZSVE=';
-export const DEFAULT_GEMINI_KEY = typeof atob === 'function' ? atob(_DK) : Buffer.from(_DK, 'base64').toString('utf-8');
+export const DEFAULT_GEMINI_KEY = decodeKey(_DK);
 
 export const getGeminiApiKey = (): string => {
   if (typeof window === 'undefined') return DEFAULT_GEMINI_KEY;
@@ -125,7 +133,7 @@ Format respon WAJIB berupa JSON array valid berikut:
 ]`;
 
   // Use active Google Gemini models
-  const models = ['gemini-3.8-flash', 'gemini-2.5-flash', 'gemini-flash-latest'];
+  const models = ['gemini-flash-latest', 'gemini-3.6-flash', 'gemini-3.8-flash', 'gemini-2.5-flash'];
   let lastError: Error | null = null;
 
   for (const model of models) {
