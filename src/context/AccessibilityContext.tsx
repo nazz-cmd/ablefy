@@ -166,15 +166,12 @@ export const AccessibilityProvider: React.FC<{ children: ReactNode }> = ({ child
           if (window.speechSynthesis.paused) {
             window.speechSynthesis.resume();
           }
-          const silentUtterance = new SpeechSynthesisUtterance('');
-          silentUtterance.volume = 0;
-          window.speechSynthesis.speak(silentUtterance);
         } catch (_) {}
       }
     };
 
-    window.addEventListener('touchstart', unlockAudio, { once: true, passive: true });
-    window.addEventListener('click', unlockAudio, { once: true, passive: true });
+    window.addEventListener('touchstart', unlockAudio, { passive: true });
+    window.addEventListener('click', unlockAudio, { passive: true });
     return () => {
       window.removeEventListener('touchstart', unlockAudio);
       window.removeEventListener('click', unlockAudio);
@@ -328,14 +325,27 @@ export const AccessibilityProvider: React.FC<{ children: ReactNode }> = ({ child
   const voiceCuesRef = useRef<boolean>(voiceCues);
   voiceCuesRef.current = voiceCues;
 
+  // Active SpeechSynthesisUtterance pinned to ref and window to prevent V8 garbage collection
+  const activeUtteranceRef = useRef<SpeechSynthesisUtterance | null>(null);
+  const speechResetTimerRef = useRef<any>(null);
+
   const stopSpeech = () => {
     incrementAudioGeneration();
     stopMicrosoftAudio();
     stopGoogleAudio();
+    if (speechResetTimerRef.current) {
+      clearTimeout(speechResetTimerRef.current);
+      speechResetTimerRef.current = null;
+    }
     if (typeof window !== 'undefined' && 'speechSynthesis' in window) {
       try {
         window.speechSynthesis.cancel();
       } catch (_) {}
+    }
+    activeUtteranceRef.current = null;
+    if (typeof window !== 'undefined') {
+      (window as any).__ablefyActiveUtterance = null;
+      window.dispatchEvent(new CustomEvent('ablefy-system-speaking', { detail: { speaking: false } }));
     }
     setIsSpeaking(false);
   };
@@ -361,10 +371,12 @@ export const AccessibilityProvider: React.FC<{ children: ReactNode }> = ({ child
       if (window.speechSynthesis.paused) {
         window.speechSynthesis.resume();
       }
-      window.speechSynthesis.cancel();
+
       const utterance = new SpeechSynthesisUtterance(text);
       utterance.lang = 'id-ID';
-      utterance.rate = 1.15; // slightly faster for snappy responsive UI feedback
+      utterance.rate = 1.1; // crisp, snappy responsive UI feedback
+      utterance.pitch = 1.0;
+      utterance.volume = 1.0;
 
       const voices = window.speechSynthesis.getVoices();
       const idVoice = voices.find((v) => v.lang.startsWith('id') || v.lang.includes('ID'));
@@ -372,29 +384,57 @@ export const AccessibilityProvider: React.FC<{ children: ReactNode }> = ({ child
         utterance.voice = idVoice;
       }
 
+      // Pin utterance globally to prevent V8 garbage collection mid-speech
+      activeUtteranceRef.current = utterance;
+      (window as any).__ablefyActiveUtterance = utterance;
+
       utterance.onstart = () => {
-        setIsSpeaking(true);
+        // Dispatch custom event to notify VoiceNavigator without re-rendering the whole React tree
         if (typeof window !== 'undefined') {
           window.dispatchEvent(new CustomEvent('ablefy-system-speaking', { detail: { speaking: true, text } }));
         }
       };
 
-      utterance.onend = () => {
-        setIsSpeaking(false);
+      const cleanupUtterance = () => {
+        if (activeUtteranceRef.current === utterance) {
+          activeUtteranceRef.current = null;
+        }
+        if ((window as any).__ablefyActiveUtterance === utterance) {
+          (window as any).__ablefyActiveUtterance = null;
+        }
         if (typeof window !== 'undefined') {
           window.dispatchEvent(new CustomEvent('ablefy-system-speaking', { detail: { speaking: false, text } }));
         }
       };
 
+      utterance.onend = cleanupUtterance;
       utterance.onerror = () => {
-        setIsSpeaking(false);
-        if (typeof window !== 'undefined') {
-          window.dispatchEvent(new CustomEvent('ablefy-system-speaking', { detail: { speaking: false, text } }));
-        }
+        cleanupUtterance();
       };
 
       recordRecentCue(text);
-      window.speechSynthesis.speak(utterance);
+
+      const doSpeak = () => {
+        try {
+          if (typeof window !== 'undefined' && 'speechSynthesis' in window) {
+            if (window.speechSynthesis.paused) {
+              window.speechSynthesis.resume();
+            }
+            window.speechSynthesis.speak(utterance);
+          }
+        } catch (err) {
+          console.warn('speakInstantCue doSpeak error:', err);
+        }
+      };
+
+      // In Chromium, if already speaking, cancel first then wait 25ms so IPC cancel completes
+      if (window.speechSynthesis.speaking) {
+        window.speechSynthesis.cancel();
+        if (speechResetTimerRef.current) clearTimeout(speechResetTimerRef.current);
+        speechResetTimerRef.current = setTimeout(doSpeak, 25);
+      } else {
+        doSpeak();
+      }
     } catch (err) {
       console.warn('speakInstantCue error:', err);
     }
@@ -415,7 +455,7 @@ export const AccessibilityProvider: React.FC<{ children: ReactNode }> = ({ child
   };
 
   // Universal Screen Voice Guide (Panduan Suara Layar)
-  // When active, intercepts any click/tap on interactive elements across all modules and speaks their label
+  // Intercepts any click/tap on interactive elements across all modules and speaks their label
   useEffect(() => {
     if (!voiceCues) return;
 
@@ -423,12 +463,12 @@ export const AccessibilityProvider: React.FC<{ children: ReactNode }> = ({ child
       const target = event.target as HTMLElement | null;
       if (!target) return;
 
-      // Don't speak if an explicit speakCue was just dispatched in the last 400ms
-      if (Date.now() - lastSpokenCueTimeRef.current < 400) return;
+      // If an explicit action cue was spoken by the button/action within the last 250ms, do not double-announce
+      if (Date.now() - lastSpokenCueTimeRef.current < 250) return;
 
-      // Find the nearest interactive element
+      // Find the nearest interactive element (buttons, links, inputs, tabs, or clickable cards/containers)
       const interactiveEl = target.closest<HTMLElement>(
-        'button, a, input, select, textarea, [role="button"], [role="tab"], [role="menuitem"], [role="switch"], [role="checkbox"]'
+        'button, a, input, select, textarea, [role="button"], [role="tab"], [role="menuitem"], [role="switch"], [role="checkbox"], [data-clickable="true"], .cursor-pointer, [class*="cursor-pointer"]'
       );
       if (!interactiveEl) return;
 
@@ -454,37 +494,50 @@ export const AccessibilityProvider: React.FC<{ children: ReactNode }> = ({ child
         } else {
           labelToSpeak = 'Kolom isian URL';
         }
+      } else if (isInput) {
+        if (ariaLabel && ariaLabel.trim()) {
+          labelToSpeak = `Kotak isian ${ariaLabel.trim()}`;
+        } else if (placeholder && placeholder.trim()) {
+          const cleanPlaceholder = placeholder.replace(/https?:\/\/[^\s]+/gi, '').replace(/\.{3,}$/, '').trim();
+          labelToSpeak = cleanPlaceholder ? `Kotak isian ${cleanPlaceholder}` : 'Kotak isian teks';
+        } else {
+          labelToSpeak = 'Kotak isian teks';
+        }
       } else if (ariaLabel && ariaLabel.trim()) {
         labelToSpeak = ariaLabel.trim();
       } else if (title && title.trim()) {
         labelToSpeak = title.trim();
-      } else if (innerText && innerText.length <= 80) {
-        // Clean innerText from icons or excessive newlines
-        labelToSpeak = innerText.replace(/[\r\n\t]+/g, ' ').replace(/\s{2,}/g, ' ').trim();
-      } else if (placeholder && placeholder.trim()) {
-        const cleanPlaceholder = placeholder.replace(/https?:\/\/[^\s]+/gi, '').replace(/\.{3,}$/, '').trim();
-        labelToSpeak = cleanPlaceholder ? `Kotak isian ${cleanPlaceholder}` : 'Kotak isian teks';
+      } else {
+        // Check for primary card headings first (e.g. Activity History or Sign Language Vocabulary items)
+        const heading = interactiveEl.querySelector<HTMLElement>('h1, h2, h3, h4, h5, [class*="font-bold"], [class*="font-semibold"]');
+        const headingText = heading?.innerText?.trim();
+        if (headingText && headingText.length <= 60) {
+          labelToSpeak = headingText;
+        } else if (innerText && innerText.length <= 80) {
+          // Clean innerText from icons or excessive newlines
+          labelToSpeak = innerText.replace(/[\r\n\t]+/g, ' ').replace(/\s{2,}/g, ' ').trim();
+        }
       }
 
       if (!labelToSpeak || labelToSpeak.length < 2) return;
 
-      // Check for duplicate speech
+      // Filter duplicate speech if the exact same item was spoken within 500ms
       const lower = labelToSpeak.toLowerCase();
-      if (lower === lastSpokenCueTextRef.current && Date.now() - lastSpokenCueTimeRef.current < 1200) {
+      if (lower === lastSpokenCueTextRef.current && Date.now() - lastSpokenCueTimeRef.current < 500) {
         return;
       }
 
-      // Add descriptive prefixes if helpful
+      // Add descriptive prefixes
       let announcement = labelToSpeak;
       if (interactiveEl.tagName === 'A') {
-        announcement = `Tautan ${labelToSpeak}`;
+        if (!lower.startsWith('tautan')) announcement = `Tautan ${labelToSpeak}`;
       } else if (type === 'checkbox') {
         const checked = (interactiveEl as HTMLInputElement).checked;
         announcement = `${labelToSpeak}, ${checked ? 'centang' : 'tidak dicentang'}`;
       } else if (interactiveEl.getAttribute('role') === 'tab') {
-        announcement = `Tab ${labelToSpeak}`;
+        if (!lower.startsWith('tab')) announcement = `Tab ${labelToSpeak}`;
       } else if (interactiveEl.tagName === 'BUTTON') {
-        if (!/^(buka|tutup|mulai|putar|jeda|hentikan|salin|hapus|pilih|aktifkan|matikan|ganti|unduh|unggah)/i.test(labelToSpeak)) {
+        if (!/^(tombol|buka|tutup|mulai|putar|jeda|hentikan|salin|hapus|pilih|aktifkan|matikan|ganti|unduh|unggah)/i.test(labelToSpeak)) {
           announcement = `Tombol ${labelToSpeak}`;
         }
       }
@@ -492,9 +545,10 @@ export const AccessibilityProvider: React.FC<{ children: ReactNode }> = ({ child
       speakCue(announcement);
     };
 
-    document.addEventListener('click', handleGlobalClick, { capture: true, passive: true });
+    // Use standard bubbling phase so component onClick handlers fire first and can set explicit action cues
+    document.addEventListener('click', handleGlobalClick, { passive: true });
     return () => {
-      document.removeEventListener('click', handleGlobalClick, { capture: true });
+      document.removeEventListener('click', handleGlobalClick);
     };
   }, [voiceCues]);
 
@@ -639,7 +693,7 @@ export const AccessibilityProvider: React.FC<{ children: ReactNode }> = ({ child
       localStorage.setItem('ablefy_voice_cues', String(enabled));
     } catch (_) {}
     if (enabled) {
-      speakText('Panduan suara layar diaktifkan');
+      speakCue('Panduan suara layar diaktifkan', undefined, true);
     } else {
       // Immediately silence any playing audio and cancel any queued synthesis
       stopSpeech();

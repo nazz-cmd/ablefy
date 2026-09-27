@@ -281,9 +281,22 @@ export const speakWithBrowserAzureFallback = (
     }
   }
 
+  // Pin utterance globally to prevent Chromium GC mid-speech
+  (window as any).__ablefyActiveUtterance = utterance;
+
   utterance.onstart = () => options?.onStart?.();
-  utterance.onend = () => options?.onEnd?.();
-  utterance.onerror = (e) => options?.onError?.(e);
+  utterance.onend = () => {
+    if ((window as any).__ablefyActiveUtterance === utterance) {
+      (window as any).__ablefyActiveUtterance = null;
+    }
+    options?.onEnd?.();
+  };
+  utterance.onerror = (e) => {
+    if ((window as any).__ablefyActiveUtterance === utterance) {
+      (window as any).__ablefyActiveUtterance = null;
+    }
+    options?.onError?.(e);
+  };
 
   window.speechSynthesis.speak(utterance);
 };

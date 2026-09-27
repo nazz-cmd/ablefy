@@ -234,21 +234,21 @@ export const VoiceNavigator: React.FC<VoiceNavigatorProps> = ({ onNavigateTab, i
     // 1. Two-way echo suppression: filter audio feedback from Panduan Suara & system TTS
     const now = Date.now();
     const isBrowserSpeaking = typeof window !== 'undefined' && Boolean(window.speechSynthesis && window.speechSynthesis.speaking);
-    const isCurrentlySpeaking = isSpeaking || isSystemSpeakingRef.current || isBrowserSpeaking || (now - lastSpokenResponseTimeRef.current < 1800) || (now - lastSystemSpeakingEndTimeRef.current < 900);
+    const isCurrentlySpeaking = isSpeaking || isSystemSpeakingRef.current || isBrowserSpeaking || (now - lastSpokenResponseTimeRef.current < 1200) || (now - lastSystemSpeakingEndTimeRef.current < 400);
 
-    // Check against recent screen reader cues in the last 6 seconds
+    // Check against recent screen reader cues (exact phrase echo within 1.5s)
     const recentCues: Array<{ text: string; time: number }> = (typeof window !== 'undefined' && (window as any).__ablefyRecentCues) || [];
     const isMatchingRecentCue = recentCues.some(c => 
-      now - c.time < 5500 && (
-        phraseLower.includes(c.text) || 
-        c.text.includes(phraseLower) ||
-        (phraseLower.length >= 4 && c.text.split(/\s+/).some(w => phraseLower.includes(w) && w.length >= 4))
+      now - c.time < 1500 && (
+        phraseLower === c.text || 
+        (phraseLower.length > 7 && c.text.includes(phraseLower)) ||
+        (c.text.length > 7 && phraseLower.includes(c.text))
       )
     );
 
     if (isCurrentlySpeaking && lastSpokenResponseRef.current) {
       const spokenLower = lastSpokenResponseRef.current.toLowerCase();
-      if (phraseLower === spokenLower || (phraseLower.length > 4 && spokenLower.includes(phraseLower))) {
+      if (phraseLower === spokenLower || (phraseLower.length > 5 && spokenLower.includes(phraseLower))) {
         return false;
       }
     }
@@ -387,15 +387,15 @@ export const VoiceNavigator: React.FC<VoiceNavigatorProps> = ({ onNavigateTab, i
         // Check if device is actively speaking (Panduan Suara, screen reader cue, or TTS)
         const now = Date.now();
         const isBrowserSpeaking = typeof window !== 'undefined' && Boolean(window.speechSynthesis && window.speechSynthesis.speaking);
-        const isDeviceSpeaking = isSpeaking || isSystemSpeakingRef.current || isBrowserSpeaking || (now - lastSystemSpeakingEndTimeRef.current < 900) || (now - lastSpokenResponseTimeRef.current < 1200);
+        const isDeviceSpeaking = isSpeaking || isSystemSpeakingRef.current || isBrowserSpeaking || (now - lastSystemSpeakingEndTimeRef.current < 400) || (now - lastSpokenResponseTimeRef.current < 1200);
 
         const currentLower = currentSpeech.toLowerCase();
         const recentCues: Array<{ text: string; time: number }> = (typeof window !== 'undefined' && (window as any).__ablefyRecentCues) || [];
         const isMatchingRecentCue = recentCues.some(c => 
-          now - c.time < 5000 && (
-            currentLower.includes(c.text) || 
-            c.text.includes(currentLower) ||
-            (currentLower.length >= 4 && c.text.split(/\s+/).some(w => currentLower.includes(w) && w.length >= 4))
+          now - c.time < 1500 && (
+            currentLower === c.text || 
+            (currentLower.length > 7 && c.text.includes(currentLower)) ||
+            (c.text.length > 7 && currentLower.includes(c.text))
           )
         );
 
