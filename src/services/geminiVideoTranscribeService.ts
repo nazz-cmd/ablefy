@@ -148,7 +148,7 @@ Format respon WAJIB berupa JSON array valid berikut:
   }
 ]`;
 
-  const models = ['gemini-2.0-flash', 'gemini-2.5-flash', 'gemini-1.5-flash', 'gemini-flash-latest'];
+  const models = ['gemini-3.8-flash', 'gemini-2.5-flash', 'gemini-flash-latest'];
 
   for (const model of models) {
     try {
