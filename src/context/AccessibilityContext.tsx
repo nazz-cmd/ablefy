@@ -364,10 +364,87 @@ export const AccessibilityProvider: React.FC<{ children: ReactNode }> = ({ child
   };
 
   // Safe voice cue helper: Instant zero-latency speech for UI navigation cues (0ms delay)
+  const lastSpokenCueTimeRef = useRef<number>(0);
+  const lastSpokenCueTextRef = useRef<string>('');
+
   const speakCue = (text: string, _personaOverride?: VoicePersona, force?: boolean) => {
     if (!force && !voiceCuesRef.current) return;
-    speakInstantCue(text);
+    const cleanText = text.trim();
+    if (!cleanText) return;
+    lastSpokenCueTimeRef.current = Date.now();
+    lastSpokenCueTextRef.current = cleanText.toLowerCase();
+    speakInstantCue(cleanText);
   };
+
+  // Universal Screen Voice Guide (Panduan Suara Layar)
+  // When active, intercepts any click/tap on interactive elements across all modules and speaks their label
+  useEffect(() => {
+    if (!voiceCues) return;
+
+    const handleGlobalClick = (event: MouseEvent) => {
+      const target = event.target as HTMLElement | null;
+      if (!target) return;
+
+      // Don't speak if an explicit speakCue was just dispatched in the last 400ms
+      if (Date.now() - lastSpokenCueTimeRef.current < 400) return;
+
+      // Find the nearest interactive element
+      const interactiveEl = target.closest<HTMLElement>(
+        'button, a, input, select, textarea, [role="button"], [role="tab"], [role="menuitem"], [role="switch"], [role="checkbox"]'
+      );
+      if (!interactiveEl) return;
+
+      // Determine the human-readable label
+      const ariaLabel = interactiveEl.getAttribute('aria-label');
+      const title = interactiveEl.getAttribute('title');
+      const innerText = interactiveEl.innerText?.trim();
+      const placeholder = (interactiveEl as HTMLInputElement).placeholder;
+      const type = interactiveEl.getAttribute('type');
+
+      let labelToSpeak = '';
+
+      if (ariaLabel && ariaLabel.trim()) {
+        labelToSpeak = ariaLabel.trim();
+      } else if (title && title.trim()) {
+        labelToSpeak = title.trim();
+      } else if (innerText && innerText.length <= 80) {
+        // Clean innerText from icons or excessive newlines
+        labelToSpeak = innerText.replace(/[\r\n\t]+/g, ' ').replace(/\s{2,}/g, ' ').trim();
+      } else if (placeholder && placeholder.trim()) {
+        labelToSpeak = `Kotak isian: ${placeholder.trim()}`;
+      }
+
+      if (!labelToSpeak || labelToSpeak.length < 2) return;
+
+      // Check for duplicate speech
+      const lower = labelToSpeak.toLowerCase();
+      if (lower === lastSpokenCueTextRef.current && Date.now() - lastSpokenCueTimeRef.current < 1200) {
+        return;
+      }
+
+      // Add descriptive prefixes if helpful
+      let announcement = labelToSpeak;
+      if (interactiveEl.tagName === 'A') {
+        announcement = `Tautan ${labelToSpeak}`;
+      } else if (type === 'checkbox') {
+        const checked = (interactiveEl as HTMLInputElement).checked;
+        announcement = `${labelToSpeak}, ${checked ? 'centang' : 'tidak dicentang'}`;
+      } else if (interactiveEl.getAttribute('role') === 'tab') {
+        announcement = `Tab ${labelToSpeak}`;
+      } else if (interactiveEl.tagName === 'BUTTON') {
+        if (!/^(buka|tutup|mulai|putar|jeda|hentikan|salin|hapus|pilih|aktifkan|matikan|ganti|unduh|unggah)/i.test(labelToSpeak)) {
+          announcement = `Tombol ${labelToSpeak}`;
+        }
+      }
+
+      speakCue(announcement);
+    };
+
+    document.addEventListener('click', handleGlobalClick, { capture: true, passive: true });
+    return () => {
+      document.removeEventListener('click', handleGlobalClick, { capture: true });
+    };
+  }, [voiceCues]);
 
   const applyPersona = (persona: UserPersona) => {
     setActivePersonaState(persona);

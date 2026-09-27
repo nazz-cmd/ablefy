@@ -35,9 +35,16 @@ export const MobileBottomBar: React.FC<MobileBottomBarProps> = ({
     { id: 'bisindo', label: 'Isyarat', icon: BookOpen, highlight: false },
   ];
 
+  const fullLabels: Record<string, string> = {
+    home: 'Beranda',
+    studio: 'Pembaca Teks',
+    lecture: 'Transkripsi Wicara',
+    bisindo: 'Bahasa Isyarat'
+  };
+
   const handleNav = (id: string, label: string) => {
     setActiveTab(id);
-    speakCue(`Membuka menu ${label}`, undefined, true);
+    speakCue(`Membuka ${fullLabels[id] || label}`);
   };
 
   return (

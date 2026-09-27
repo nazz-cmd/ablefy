@@ -35,6 +35,10 @@ export const isBlockedContent = (text: string): boolean => {
  * Clean and format raw extracted markdown/HTML content into TTS-ready sentences
  * Serves as a deterministic offline fallback when AI is unavailable.
  */
+/**
+ * Clean and format raw extracted markdown/HTML content into TTS-ready sentences.
+ * Purges navigation menus, header links, search bars, editorial boilerplate, and ads.
+ */
 export const cleanExtractedText = (rawText: string): string => {
   if (!rawText) return '';
 
@@ -43,115 +47,155 @@ export const cleanExtractedText = (rawText: string): string => {
   // 1. Remove Markdown images: ![alt](url)
   cleaned = cleaned.replace(/!\[.*?\]\(.*?\)/g, '');
 
-  // 2. Convert Markdown links: [anchor text](url) -> anchor text
+  // 2. Remove empty Markdown links: [](url) or [ ](url)
+  cleaned = cleaned.replace(/\[\s*\]\([^)]*\)/g, '');
+
+  // 3. Convert standard Markdown links: [anchor text](url) -> anchor text
   cleaned = cleaned.replace(/\[([^\]]+)\]\([^)]+\)/g, '$1');
 
-  // 3. Remove Wikipedia citation markers: [[1]], [1], [2a], [↑], etc.
+  // 4. Remove standalone URLs (e.g., (https://...) or raw http:// links)
+  cleaned = cleaned.replace(/\(https?:\/\/[^\s)]+\)/g, '');
+  cleaned = cleaned.replace(/https?:\/\/[^\s]+/g, '');
+
+  // 5. Remove Wikipedia and news citation markers: [[1]], [1], [2a], [↑], etc.
   cleaned = cleaned.replace(/\[\[?\d+[a-z]?\]?\]/gi, '');
   cleaned = cleaned.replace(/\[↑\]/g, '');
 
-  // 4. Remove Markdown formatting symbols (*, _, #, `, ~)
+  // 6. Remove Jina / Scraper metadata headers
+  cleaned = cleaned.replace(/^(Title|URL Source|Markdown Content|Published Time|Author|Feed|Source):\s*.+$/gim, '');
+
+  // 7. Remove Markdown formatting symbols (#, `, ~, headings)
   cleaned = cleaned.replace(/#{1,6}\s+/g, '');
-  cleaned = cleaned.replace(/(\*\*|__)(.*?)\1/g, '$2');
-  cleaned = cleaned.replace(/(\*|_)(.*?)\1/g, '$2');
   cleaned = cleaned.replace(/`{1,3}(.*?)`{1,3}/g, '$1');
 
-  // 5. Remove HTML tags if present
+  // 8. Remove HTML tags if present
   cleaned = cleaned.replace(/<[^>]+>/g, ' ');
 
-  // 6. Remove common boilerplate / footer sections (e.g., Referensi, Daftar Pustaka, Catatan Kaki)
+  // 9. Cut off common footer/editorial sections
   const cutOffPatterns = [
-    /\n\s*(##?\s*)?(Referensi|Daftar Pustaka|Catatan Kaki|External Links|Pranala Luar|Lihat Pula|See Also)[\s\S]*$/i,
-    /\n\s*Share this:[\s\S]*$/i,
-    /\n\s*Ikuti kami di[\s\S]*$/i,
-    /\n\s*(Apakah artikel ini membantu|Bagikan artikel ini)[\s\S]*$/i,
-    /\n\s*(Hak Cipta|Copyright)[\s\S]*$/i,
+    /\n\s*(##?\s*)?(Referensi|Daftar Pustaka|Catatan Kaki|External Links|Pranala Luar|Lihat Pula|See Also|Artikel Terkait|Berita Terkait)[\s\S]*$/i,
+    /\n\s*(BACA JUGA|SIMAK JUGA|PILIHAN EDITOR|EDITOR'S PICK|TRENDING TOPIK)[\s\S]*$/i,
+    /\n\s*(Share this|Bagikan artikel|Ikuti kami|Komentar|Laporkan konten)[\s\S]*$/i,
+    /\n\s*(Hak Cipta|Copyright|All rights reserved|Semua Hak Dilindungi)[\s\S]*$/i,
   ];
   for (const pattern of cutOffPatterns) {
     cleaned = cleaned.replace(pattern, '');
   }
 
-  // 7. Normalize line breaks and filter out header/menu/breadcrumb boilerplate
-  cleaned = cleaned
-    .split('\n')
-    .map((line) => line.trim())
-    .filter((line) => {
-      // Filter out empty lines, standalone symbols, or short navigation snippets
-      if (!line) return false;
-      if (/^[-=*_]{3,}$/.test(line)) return false; // horizontal rules
-      if (
-        /^(menu|navigasi|tampilan|tindakan|perkakas|bagikan|komentar|open main menu|daftar sekarang|cara bergabung|komunitas|kategori bantuan)$/i.test(
-          line
-        )
-      ) {
-        return false;
-      }
-      if (/^(kategori bantuan|kategori|bantuan|home|beranda)\s*[/›»>]/i.test(line)) return false; // breadcrumb line
-      if (/^(ya\s*\|\s*tidak)$/i.test(line)) return false;
-      return true;
-    })
-    .join('\n\n');
+  // 10. Split into lines and filter out noisy navigation / menu bars
+  const rawLines = cleaned.split('\n');
+  const validParagraphs: string[] = [];
 
-  return cleaned.trim();
+  for (let line of rawLines) {
+    line = line.trim();
+    if (!line) continue;
+
+    // Discard horizontal rules or repetitive symbols
+    if (/^[-=*_#]{3,}$/.test(line)) continue;
+
+    // Discard lines that contain high-density asterisk navigation menus
+    // e.g. "* Masuk bola CARI Pencarian Terpopuler * Persib... * Home * BRI Super League..."
+    const asteriskCount = (line.match(/\*/g) || []).length;
+    if (asteriskCount >= 3) continue;
+
+    // Discard lines with pipe-separated navigation: "Home | Berita | Olahraga | Jadwal"
+    const pipeCount = (line.match(/\|/g) || []).length;
+    if (pipeCount >= 3) continue;
+
+    // Discard editorial promo / callout lines
+    if (
+      /^(baca juga|simak juga|baca selanjutnya|pilihan editor|artikel terkait|foto:|video:|penulis:|editor:|sumber:|grafis:|infografis:|tag:|topik terkait):?/i.test(
+        line
+      )
+    ) {
+      continue;
+    }
+
+    // Discard navigation, breadcrumb, and button fragments
+    if (
+      /^(menu|navigasi|tampilan|tindakan|perkakas|bagikan|komentar|cari|search|open main menu|daftar sekarang|masuk|login|home|beranda|klasemen|jadwal|skor langsung|live score|newsletter|unduh aplikasi)$/i.test(
+        line
+      )
+    ) {
+      continue;
+    }
+
+    // Discard short link breadcrumb fragments
+    if (/^(kategori bantuan|kategori|bantuan|home|beranda)\s*[/›»>]/i.test(line)) continue;
+    if (/^(ya\s*\|\s*tidak)$/i.test(line)) continue;
+
+    // Strip lingering asterisks or list bullets from the start of real paragraphs
+    line = line.replace(/^[*•\-\d.]+\s*/, '').trim();
+
+    // Clean inline excessive bold/italic asterisks: **text** -> text
+    line = line.replace(/[*_]{1,3}(.*?)[*_]{1,3}/g, '$1').trim();
+
+    // Only keep lines with substantial narrative content (at least 20 chars with letters)
+    if (line.length >= 20 && /[a-zA-Z]{3,}/.test(line)) {
+      validParagraphs.push(line);
+    }
+  }
+
+  // Join into clean paragraphs
+  let result = validParagraphs.join('\n\n').trim();
+
+  // Final cleanup: condense multiple whitespace/newlines
+  result = result.replace(/[ \t]{2,}/g, ' ');
+  result = result.replace(/\n{3,}/g, '\n\n');
+
+  return result;
 };
 
 /**
  * Uses Gemini AI to intelligently clean website noise (menus, breadcrumbs, footer junk)
- * and extract / summarize only the core substance into fluent, TTS-ready sentences.
+ * and summarize only the core substance into fluent, TTS-ready sentences.
  */
 export const summarizeAndCleanArticleWithGemini = async (
   rawContent: string,
   rawTitle: string,
   targetUrl: string
 ): Promise<{ title: string; content: string }> => {
+  // First, apply our deterministic cleaner to strip obvious scraping junk
+  const preCleaned = cleanExtractedText(rawContent);
+
   const apiKey = getGeminiApiKey();
   if (!apiKey) {
-    console.warn('Gemini API key is not configured, falling back to regex clean text.');
     return {
-      title: rawTitle.trim() || 'Artikel Web',
-      content: cleanExtractedText(rawContent),
+      title: rawTitle.trim() || 'Rangkuman Artikel Web',
+      content: preCleaned || cleanExtractedText(rawContent),
     };
   }
 
   // Limit input size to prevent token overflow while preserving sufficient context
-  const trimmed = rawContent.slice(0, 25000);
+  const trimmed = (preCleaned || rawContent).slice(0, 20000);
 
   const prompt = `Anda adalah asisten AI cerdas untuk platform aksesibilitas pendidikan inklusif Ablefy (Studio Pembaca Ramah Disleksia & Text-to-Speech).
 
 URL Asal: ${targetUrl}
 Judul Terdeteksi: ${rawTitle || 'Tidak ada'}
 
-Berikut adalah teks mentah hasil ekstraksi dari halaman web/artikel:
+Berikut adalah teks hasil ekstraksi dari artikel web/berita:
 """
 ${trimmed}
 """
 
 Tugas Anda:
-1. BERSINKAN SELURUH ELEMEN PENGGANGGU:
-   - Singkirkan menu navigasi website (misal: "Open main menu", tombol "Daftar", "Masuk", "Beranda", navbar header/sidebar).
-   - Singkirkan remah roti / breadcrumbs (misal: "Kategori Bantuan / Panduan / Topik...").
-   - Singkirkan formulir atau tombol interaksi (misal: "Apakah artikel ini membantu?", "Bagikan ke WhatsApp/Facebook", "Download Aplikasi", rating bintang).
-   - Singkirkan teks promosi, iklan, disclaimer hak cipta (copyright), footer website, dan tautan artikel terkait.
-
-2. AMBIL HANYA ISI INTI / SUBSTANSI MATERI UTAMA:
-   - Ambil inti informasi, panduan, atau pembahasan materi pokok yang ada pada halaman tersebut.
-   - Rangkum dan tata kembali informasi penting tersebut menjadi paragraf-paragraf yang mengalir secara alami, logis, dan terstruktur rapi dalam bahasa Indonesia yang baik dan baku.
-
-3. OPTIMALKAN UNTUK PEMBACAAN SUARA (TEXT-TO-SPEECH):
-   - Gunakan kalimat yang utuh dan jelas dengan tanda baca titik dan koma yang tepat.
-   - Hindari simbol markdown berlebihan (jangan gunakan tanda pagar heading ###, bintang tebal berlebih **, atau garis pemisah ---).
-   - Pisahkan antar-paragraf dengan baris baru ganda (\\n\\n).
-
-4. JUDUL ARTIKEL:
-   - Buatkan judul artikel yang bersih, ringkas, dan paling mewakili isi materi (jangan sertakan nama website, menu, atau slogan).
+1. BERSIHKAN TOTAL DARI SISA MENU ATAU LINK:
+   - Buang semua sisa menu navigasi, iklan, promosi, nama-nama kolom menu berita, dan link terkait.
+2. RANGKUM DAN TATA MENJADI NASKAH BACAAN YANG FASIH:
+   - Ambil fakta, poin-poin utama, dan inti narasi berita/artikel ini.
+   - Susun kembali menjadi 3-5 paragraf naratif yang mengalir, alami, jelas, dan enak didengar ketika dibacakan oleh Text-to-Speech (TTS).
+   - Gunakan bahasa Indonesia yang baik, lugas, dan baku.
+3. BUATKAN JUDUL YANG AKURAT DAN BERSIH:
+   - Buat judul berita/artikel yang ringkas, representatif, dan tanpa embel-embel nama situs web.
 
 Format keluaran WAJIB berupa JSON valid:
 {
   "title": "Judul Bersih dan Representatif",
-  "content": "Teks isi materi yang telah dibersihkan dan dirangkum dalam beberapa paragraf mengalir..."
+  "content": "Isi rangkuman naratif artikel dalam beberapa paragraf yang dipisahkan dengan garis baru ganda..."
 }`;
 
-  const models = ['gemini-3.6-flash', 'gemini-3.5-flash', 'gemini-flash-latest'];
+  const models = ['gemini-2.5-flash', 'gemini-2.0-flash', 'gemini-1.5-flash', 'gemini-flash-latest'];
 
   for (const model of models) {
     try {
@@ -183,7 +227,7 @@ Format keluaran WAJIB berupa JSON valid:
 
       if (parsed.content && typeof parsed.content === 'string' && parsed.content.trim().length > 30) {
         return {
-          title: (parsed.title || rawTitle || 'Artikel Web').trim(),
+          title: (parsed.title || rawTitle || 'Rangkuman Artikel Web').trim(),
           content: parsed.content.trim(),
         };
       }
@@ -192,10 +236,10 @@ Format keluaran WAJIB berupa JSON valid:
     }
   }
 
-  // Graceful fallback to regex cleaned content if Gemini fails
+  // Graceful fallback to preCleaned content if Gemini calls fail
   return {
-    title: rawTitle.trim() || 'Artikel Web',
-    content: cleanExtractedText(rawContent),
+    title: rawTitle.trim() || 'Rangkuman Artikel Web',
+    content: preCleaned || cleanExtractedText(rawContent),
   };
 };
 

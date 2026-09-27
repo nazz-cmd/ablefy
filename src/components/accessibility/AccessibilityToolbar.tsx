@@ -261,8 +261,8 @@ export const AccessibilityToolbar: React.FC = () => {
                     <VolumeX className="w-4 h-4 text-slate-400" />
                   )}
                   <span className="text-left">
-                    <span className="block font-semibold">Panduan Suara Interaktif</span>
-                    <span className="text-xs text-slate-500">Menyuarakan notifikasi aksi secara vokal</span>
+                    <span className="block font-semibold">Panduan Suara Layar</span>
+                    <span className="text-xs text-slate-500">Menyuarakan navigasi tombol, tab, tautan, & klik aksi</span>
                   </span>
                 </div>
                 <div

@@ -14,14 +14,14 @@ import { LandingPage } from './components/landing/LandingPage';
 import { MobileBottomBar } from './components/layout/MobileBottomBar';
 
 export const AppContent: React.FC = () => {
-  // 'landing' for the Speechify/Otter public front door; 'app' for the internal assistive workspace
+  // 'landing' as the default public front door; 'app' for the internal assistive workspace
   const [viewMode, setViewMode] = useState<'landing' | 'app'>(() => {
     try {
       const params = new URLSearchParams(window.location.search);
       const urlView = params.get('view');
       if (urlView === 'app' || urlView === 'landing') return urlView;
-      const saved = localStorage.getItem('ablefy_view_mode');
-      return saved === 'app' ? 'app' : 'landing';
+      // Always land on the professional landing page first by default
+      return 'landing';
     } catch {
       return 'landing';
     }
@@ -36,12 +36,6 @@ export const AppContent: React.FC = () => {
       return 'home';
     }
   });
-
-  useEffect(() => {
-    try {
-      localStorage.setItem('ablefy_view_mode', viewMode);
-    } catch (_) {}
-  }, [viewMode]);
 
   useEffect(() => {
     try {

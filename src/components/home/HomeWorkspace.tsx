@@ -234,55 +234,73 @@ export const HomeWorkspace: React.FC<HomeWorkspaceProps> = ({ onNavigate }) => {
             {/* List of History Items */}
             {filteredHistory.length > 0 ? (
               <div className="space-y-2.5">
-                {filteredHistory.map((item) => (
-                  <div
-                    key={item.id}
-                    onClick={() => handleLaunch(item.tabId, item.title)}
-                    className="group cursor-pointer rounded-2xl border border-slate-200/80 dark:border-slate-800 bg-white dark:bg-slate-900 p-3.5 sm:p-4 shadow-2xs hover:shadow-md hover:border-blue-400/80 transition-all duration-150 flex items-center justify-between gap-4"
-                  >
-                    <div className="flex items-center gap-3.5 flex-1 min-w-0">
-                      <div className={`w-10 h-10 rounded-xl flex items-center justify-center shrink-0 border group-hover:scale-105 transition ${
-                        item.type === 'reading'
-                          ? 'bg-blue-50 text-blue-600 border-blue-100 dark:bg-blue-950/50 dark:border-blue-900'
-                          : item.type === 'audio'
-                          ? 'bg-rose-50 text-rose-600 border-rose-100 dark:bg-rose-950/50 dark:border-rose-900'
-                          : 'bg-emerald-50 text-emerald-600 border-emerald-100 dark:bg-emerald-950/50 dark:border-emerald-900'
-                      }`}>
-                        {item.type === 'reading' && <FileText className="w-5 h-5" />}
-                        {item.type === 'audio' && <Radio className="w-5 h-5" />}
-                        {item.type === 'sign' && <BookOpen className="w-5 h-5" />}
-                      </div>
+                {filteredHistory.map((item) => {
+                  const detailChips = (item.details || '')
+                    .split('•')
+                    .map((s) => s.trim())
+                    .filter(Boolean);
 
-                      <div className="space-y-0.5 flex-1 min-w-0">
-                        <div className="flex flex-wrap items-center gap-2">
-                          <h4 className="text-sm font-bold text-slate-900 dark:text-white group-hover:text-blue-600 transition truncate">
-                            {item.title}
-                          </h4>
-                          <span className={`text-xs font-semibold px-2 py-0.5 rounded border shrink-0 ${
-                            item.type === 'reading'
-                              ? 'text-blue-700 bg-blue-50 border-blue-100'
-                              : item.type === 'audio'
-                              ? 'text-rose-700 bg-rose-50 border-rose-100'
-                              : 'text-emerald-700 bg-emerald-50 border-emerald-100'
-                          }`}>
-                            {item.moduleName}
-                          </span>
+                  return (
+                    <div
+                      key={item.id}
+                      onClick={() => handleLaunch(item.tabId, item.title)}
+                      className="group cursor-pointer rounded-2xl border border-slate-200/80 dark:border-slate-800 bg-white dark:bg-slate-900 p-3.5 sm:p-4 shadow-2xs hover:shadow-md hover:border-blue-400/80 transition-all duration-150 flex items-start sm:items-center justify-between gap-3"
+                    >
+                      <div className="flex items-start sm:items-center gap-3 flex-1 min-w-0">
+                        <div className={`w-10 h-10 rounded-xl flex items-center justify-center shrink-0 border group-hover:scale-105 transition mt-0.5 sm:mt-0 ${
+                          item.type === 'reading'
+                            ? 'bg-blue-50 text-blue-600 border-blue-100 dark:bg-blue-950/50 dark:border-blue-900'
+                            : item.type === 'audio'
+                            ? 'bg-rose-50 text-rose-600 border-rose-100 dark:bg-rose-950/50 dark:border-rose-900'
+                            : 'bg-emerald-50 text-emerald-600 border-emerald-100 dark:bg-emerald-950/50 dark:border-emerald-900'
+                        }`}>
+                          {item.type === 'reading' && <FileText className="w-5 h-5" />}
+                          {item.type === 'audio' && <Radio className="w-5 h-5" />}
+                          {item.type === 'sign' && <BookOpen className="w-5 h-5" />}
                         </div>
 
-                        <div className="text-xs text-slate-500 dark:text-slate-400 flex items-center gap-2">
-                          <span>{item.timestamp}</span>
-                          <span>•</span>
-                          <span>{item.details}</span>
+                        <div className="space-y-1.5 flex-1 min-w-0">
+                          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1 sm:gap-2">
+                            <h4 className="text-xs sm:text-sm font-bold text-slate-900 dark:text-white group-hover:text-blue-600 transition truncate">
+                              {item.title}
+                            </h4>
+                            <div className="flex items-center gap-2 shrink-0">
+                              <span className={`text-[10px] sm:text-xs font-semibold px-2 py-0.5 rounded-full border ${
+                                item.type === 'reading'
+                                  ? 'text-blue-700 bg-blue-50 border-blue-200 dark:bg-blue-950/60 dark:text-blue-300 dark:border-blue-800'
+                                  : item.type === 'audio'
+                                  ? 'text-rose-700 bg-rose-50 border-rose-200 dark:bg-rose-950/60 dark:text-rose-300 dark:border-rose-800'
+                                  : 'text-emerald-700 bg-emerald-50 border-emerald-200 dark:bg-emerald-950/60 dark:text-emerald-300 dark:border-emerald-800'
+                              }`}>
+                                {item.moduleName}
+                              </span>
+                              <span className="text-[11px] text-slate-400 dark:text-slate-500 font-medium whitespace-nowrap">
+                                {item.timestamp}
+                              </span>
+                            </div>
+                          </div>
+
+                          {/* Neat Tags / Metadata Pills (Zero awkward floating bullets) */}
+                          <div className="flex flex-wrap items-center gap-1.5 pt-0.5">
+                            {detailChips.map((chip, idx) => (
+                              <span
+                                key={idx}
+                                className="px-2 py-0.5 rounded-md bg-slate-100 dark:bg-slate-800 text-[11px] font-medium text-slate-600 dark:text-slate-300 border border-slate-200/50 dark:border-slate-700/60"
+                              >
+                                {chip}
+                              </span>
+                            ))}
+                          </div>
                         </div>
                       </div>
-                    </div>
 
-                    <div className="hidden sm:flex items-center gap-1 text-xs font-bold text-blue-600 group-hover:translate-x-1 transition shrink-0 self-center">
-                      <span>Buka</span>
-                      <ArrowRight className="w-4 h-4" />
+                      <div className="hidden sm:flex items-center gap-1 text-xs font-bold text-blue-600 group-hover:translate-x-1 transition shrink-0 self-center pl-2">
+                        <span>Buka</span>
+                        <ArrowRight className="w-4 h-4" />
+                      </div>
                     </div>
-                  </div>
-                ))}
+                  );
+                })}
               </div>
             ) : (
               /* EMPTY HISTORY STATE */

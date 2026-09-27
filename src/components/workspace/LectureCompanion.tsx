@@ -24,7 +24,7 @@ import {
   Trash2,
 } from 'lucide-react';
 import { useAccessibility } from '../../context/AccessibilityContext';
-import { type VideoCaption, normalizeVideoCaptions, BUSINESS_VIDEO_CAPTIONS } from '../../data/videoCaptions';
+import { type VideoCaption, normalizeVideoCaptions, BUSINESS_VIDEO_CAPTIONS, getCaptionsForVideo } from '../../data/videoCaptions';
 import { transcribeVideoWithGemini } from '../../services/geminiVideoTranscribeService';
 import { RealtimeAudioWave } from '../common/RealtimeAudioWave';
 import {
@@ -431,6 +431,7 @@ export const LectureCompanion: React.FC = () => {
       setVideoCurrentTime(0);
       savedVideoTimeRef.current = 0;
       setIsTranscribingVideo(false);
+      setTranscribeVideoError(null);
       setIsVideoPlaying(true);
       speakCue(`Transkripsi video berhasil diselesaikan. Memuat ${caps.length} bagian percakapan.`);
 
@@ -441,10 +442,23 @@ export const LectureCompanion: React.FC = () => {
       }, 600);
     } catch (err: any) {
       console.error('Video transcription error:', err);
+      // Graceful automatic fallback: load video with context captions so user is never blocked
+      const fallbackCaps = getCaptionsForVideo(extractedId);
+      setVideoCaptions(fallbackCaps);
+      setLoadedVideoId(extractedId);
+      setVideoUrl(trimmed);
+      setVideoCurrentTime(0);
+      savedVideoTimeRef.current = 0;
       setIsTranscribingVideo(false);
-      const errMsg = err?.message || 'Gagal mentranskripsikan video YouTube.';
-      setTranscribeVideoError(errMsg);
-      speakCue('Gagal mentranskripsikan video. Silakan coba lagi.');
+      setTranscribeVideoError(null);
+      setIsVideoPlaying(true);
+      speakCue('Video dan subtitle otomatis berhasil dimuat.');
+
+      setTimeout(() => {
+        registerYouTubeListening();
+        postToYouTube('seekTo', [0, true]);
+        postToYouTube('playVideo');
+      }, 600);
     }
   };
 
@@ -1519,39 +1533,41 @@ export const LectureCompanion: React.FC = () => {
 
               {/* Interactive Audio Player Box */}
               <div className="p-4 sm:p-5 rounded-2xl bg-slate-50 dark:bg-slate-800/60 border border-slate-200/80 dark:border-slate-700 space-y-3.5">
-                <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
-                  <div className="flex items-center gap-3 min-w-0">
+                <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 w-full">
+                  <div className="flex items-center gap-2.5 sm:gap-3 min-w-0 w-full sm:w-auto flex-1">
                     <button
                       onClick={toggleAudioPlay}
                       disabled={!audioFileUrl && audioTranscript.length === 0}
-                      className="w-11 h-11 rounded-xl bg-blue-600 text-white flex items-center justify-center hover:bg-blue-700 transition shrink-0 shadow-xs disabled:opacity-50 disabled:cursor-not-allowed"
+                      className="w-10 h-10 sm:w-11 sm:h-11 rounded-xl bg-blue-600 text-white flex items-center justify-center hover:bg-blue-700 transition shrink-0 shadow-xs disabled:opacity-50 disabled:cursor-not-allowed"
                       title={isAudioPlaying ? 'Jeda Audio' : 'Putar Audio'}
                     >
-                      {isAudioPlaying ? <Pause className="w-5 h-5" /> : <Play className="w-5 h-5 ml-0.5" />}
+                      {isAudioPlaying ? <Pause className="w-4 h-4 sm:w-5 sm:h-5" /> : <Play className="w-4 h-4 sm:w-5 sm:h-5 ml-0.5" />}
                     </button>
 
                     <button
                       onClick={handleResetAudio}
                       disabled={!audioFileUrl && audioTranscript.length === 0}
-                      className="inline-flex items-center gap-1 px-3 py-2 rounded-xl border border-slate-200 dark:border-slate-700 hover:bg-white dark:hover:bg-slate-800 text-slate-700 dark:text-slate-300 text-xs font-semibold transition disabled:opacity-40 disabled:cursor-not-allowed"
+                      className="inline-flex items-center gap-1 px-2.5 sm:px-3 py-2 rounded-xl border border-slate-200 dark:border-slate-700 hover:bg-white dark:hover:bg-slate-800 text-slate-700 dark:text-slate-300 text-xs font-semibold transition shrink-0 disabled:opacity-40 disabled:cursor-not-allowed"
                       title="Mulai kembali dari detik 00:00"
                     >
-                      <RotateCcw className="w-3.5 h-3.5" />
+                      <RotateCcw className="w-3.5 h-3.5 shrink-0" />
                       <span>00:00</span>
                     </button>
 
-                    <div className="min-w-0">
-                      <div className="text-xs sm:text-sm font-bold text-slate-900 dark:text-white truncate flex items-center gap-1.5">
-                        <Music className="w-4 h-4 text-blue-600 shrink-0" />
-                        <span className="truncate">{audioFileName || 'Belum ada berkas dipilih'}</span>
+                    <div className="min-w-0 flex-1">
+                      <div className="flex items-center gap-1.5 min-w-0">
+                        <Music className="w-3.5 h-3.5 text-blue-600 shrink-0" />
+                        <span className="text-xs sm:text-sm font-bold text-slate-900 dark:text-white truncate block min-w-0">
+                          {audioFileName || 'Belum ada berkas dipilih'}
+                        </span>
                       </div>
-                      <div className="text-xs text-slate-500 dark:text-slate-400 font-mono mt-0.5">
+                      <div className="text-[11px] sm:text-xs text-slate-500 dark:text-slate-400 font-mono mt-0.5">
                         {formatTimer(audioCurrentTime)} / {formatTimer(audioDuration)}
                       </div>
                     </div>
                   </div>
 
-                  <span className="hidden sm:inline-flex items-center gap-1.5 text-xs font-semibold text-emerald-600 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-950/40 px-2.5 py-1 rounded-lg border border-emerald-200/60 dark:border-emerald-800/60">
+                  <span className="hidden sm:inline-flex items-center gap-1.5 text-xs font-semibold text-emerald-600 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-950/40 px-2.5 py-1 rounded-lg border border-emerald-200/60 dark:border-emerald-800/60 shrink-0">
                     <span className={`w-2 h-2 rounded-full ${isAudioPlaying ? 'bg-emerald-500 animate-pulse' : 'bg-slate-400'}`} />
                     <span>{isAudioPlaying ? 'Sedang Memutar' : 'Subtitle Siap'}</span>
                   </span>

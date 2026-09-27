@@ -215,7 +215,7 @@ export const MobileQuickAccessSheet: React.FC<MobileQuickAccessSheetProps> = ({ 
           >
             <div className="flex items-center gap-2.5">
               {voiceCues ? <Volume2 className="w-4 h-4 text-emerald-500" /> : <VolumeX className="w-4 h-4 text-slate-400" />}
-              <span>Panduan Suara Vokal (Screen Feedback)</span>
+              <span>Panduan Suara Layar</span>
             </div>
             <span className={`px-2 py-0.5 rounded-full text-xs font-bold ${voiceCues ? 'bg-emerald-500 text-white' : 'bg-slate-100 dark:bg-slate-800 text-slate-400'}`}>
               {voiceCues ? 'AKTIF' : 'NONAKTIF'}
