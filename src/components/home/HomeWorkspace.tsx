@@ -400,6 +400,7 @@ export const HomeWorkspace: React.FC<HomeWorkspaceProps> = ({ onNavigate }) => {
                       value={meetingUrlInput}
                       onChange={(e) => setMeetingUrlInput(e.target.value)}
                       placeholder="Topik sesi atau nama materi..."
+                      aria-label="Kolom isian topik sesi transkripsi"
                       className="w-full text-xs px-3 py-2 rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-950 text-slate-900 dark:text-white placeholder:text-slate-400 focus:bg-white focus:outline-none focus:border-blue-500 font-medium transition"
                     />
                     <button

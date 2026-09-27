@@ -403,7 +403,20 @@ export const AccessibilityProvider: React.FC<{ children: ReactNode }> = ({ child
 
       let labelToSpeak = '';
 
-      if (ariaLabel && ariaLabel.trim()) {
+      const isInput = interactiveEl.tagName === 'INPUT' || interactiveEl.tagName === 'TEXTAREA';
+      const rawPlaceholder = (interactiveEl as HTMLInputElement).placeholder || '';
+      const isUrlField = type === 'url' || /https?:\/\/|www\.|\.com/i.test(rawPlaceholder) || /url|tautan|link/i.test(ariaLabel || '');
+
+      if (isInput && isUrlField) {
+        // Clean URL field announcement without raw URL syntax
+        if (ariaLabel && ariaLabel.trim() && !/https?:/i.test(ariaLabel)) {
+          labelToSpeak = ariaLabel.trim();
+        } else if (title && title.trim() && !/https?:/i.test(title)) {
+          labelToSpeak = title.trim();
+        } else {
+          labelToSpeak = 'Kolom isian URL';
+        }
+      } else if (ariaLabel && ariaLabel.trim()) {
         labelToSpeak = ariaLabel.trim();
       } else if (title && title.trim()) {
         labelToSpeak = title.trim();
@@ -411,7 +424,8 @@ export const AccessibilityProvider: React.FC<{ children: ReactNode }> = ({ child
         // Clean innerText from icons or excessive newlines
         labelToSpeak = innerText.replace(/[\r\n\t]+/g, ' ').replace(/\s{2,}/g, ' ').trim();
       } else if (placeholder && placeholder.trim()) {
-        labelToSpeak = `Kotak isian: ${placeholder.trim()}`;
+        const cleanPlaceholder = placeholder.replace(/https?:\/\/[^\s]+/gi, '').replace(/\.{3,}$/, '').trim();
+        labelToSpeak = cleanPlaceholder ? `Kotak isian ${cleanPlaceholder}` : 'Kotak isian teks';
       }
 
       if (!labelToSpeak || labelToSpeak.length < 2) return;

@@ -271,11 +271,10 @@ export const extractArticleFromUrl = async (rawUrl: string): Promise<ExtractedAr
     throw new Error('Format tautan URL tidak valid.');
   }
 
-  const controller = new AbortController();
-  const timeoutId = setTimeout(() => controller.abort(), 12000);
-
   // Strategy 1: Jina Reader API with JSON mode
   try {
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 9000);
     const jinaUrl = `https://r.jina.ai/${targetUrl}`;
     const res = await fetch(jinaUrl, {
       signal: controller.signal,
@@ -291,13 +290,7 @@ export const extractArticleFromUrl = async (rawUrl: string): Promise<ExtractedAr
       const rawContent = json?.data?.content || '';
       const rawTitle = json?.data?.title || '';
 
-      if (rawContent && rawContent.length > 50) {
-        if (isBlockedContent(rawContent)) {
-          throw new Error(
-            `Situs web ${domainName} membatasi akses otomatis (dilindungi sistem keamanan/login). Silakan buka artikel di browser, salin teksnya, lalu tempelkan di tab "Ketik / Tempel Teks".`
-          );
-        }
-
+      if (rawContent && rawContent.length > 50 && !isBlockedContent(rawContent)) {
         const aiResult = await summarizeAndCleanArticleWithGemini(rawContent, rawTitle, targetUrl);
         const wordCount = aiResult.content.split(/\s+/).filter(Boolean).length;
 
@@ -310,108 +303,37 @@ export const extractArticleFromUrl = async (rawUrl: string): Promise<ExtractedAr
       }
     }
   } catch (err: any) {
-    if (err?.name === 'AbortError') {
-      throw new Error('Waktu permintaan habis (timeout). Tautan membutuhkan waktu terlalu lama untuk merespons.');
-    }
-    if (err?.message?.includes('membatasi akses')) {
-      throw err;
-    }
-    console.warn('Jina Reader JSON extraction failed, attempting fallback...', err);
+    console.warn('Jina Reader JSON extraction skipped/failed, trying next strategy...', err?.message || err);
   }
 
-  // Strategy 2: Jina Reader Plain Text mode (Fallback)
+  // Strategy 2: Fast CORS Proxy with direct HTML parsing (Effective for news sites like Detik, Kompas, CNN)
   try {
-    const fallbackController = new AbortController();
-    const fallbackTimeout = setTimeout(() => fallbackController.abort(), 10000);
+    const corsController = new AbortController();
+    const corsTimeout = setTimeout(() => corsController.abort(), 8000);
 
-    const res = await fetch(`https://r.jina.ai/${targetUrl}`, {
-      signal: fallbackController.signal,
-    });
-    clearTimeout(fallbackTimeout);
+    const corsUrl = `https://corsproxy.io/?url=${encodeURIComponent(targetUrl)}`;
+    const res = await fetch(corsUrl, { signal: corsController.signal });
+    clearTimeout(corsTimeout);
 
     if (res.ok) {
-      const text = await res.text();
-      let title = `Artikel dari ${domainName}`;
-      let contentBody = text;
-
-      // Check if text has "Title: ..." and "Markdown Content:"
-      const titleMatch = text.match(/Title:\s*(.+)/i);
-      if (titleMatch && titleMatch[1]) {
-        title = titleMatch[1].trim();
-      }
-
-      const contentMatch = text.match(/Markdown Content:\s*([\s\S]+)/i);
-      if (contentMatch && contentMatch[1]) {
-        contentBody = contentMatch[1];
-      }
-
-      if (contentBody && contentBody.length > 50) {
-        if (isBlockedContent(contentBody)) {
-          throw new Error(
-            `Situs web ${domainName} membatasi akses otomatis (dilindungi sistem keamanan/login). Silakan buka artikel di browser, salin teksnya, lalu tempelkan di tab "Ketik / Tempel Teks".`
-          );
-        }
-
-        const aiResult = await summarizeAndCleanArticleWithGemini(contentBody, title, targetUrl);
-        const wordCount = aiResult.content.split(/\s+/).filter(Boolean).length;
-
-        return {
-          title: aiResult.title || `Artikel dari ${domainName}`,
-          content: aiResult.content,
-          sourceUrl: targetUrl,
-          wordCount,
-        };
-      }
-    }
-  } catch (err: any) {
-    if (err?.message?.includes('membatasi akses')) {
-      throw err;
-    }
-    console.warn('Jina Reader plain text extraction failed:', err);
-  }
-
-  // Strategy 3: AllOrigins CORS proxy with HTML extraction
-  try {
-    const proxyController = new AbortController();
-    const proxyTimeout = setTimeout(() => proxyController.abort(), 8000);
-
-    const proxyUrl = `https://api.allorigins.win/get?url=${encodeURIComponent(targetUrl)}`;
-    const res = await fetch(proxyUrl, { signal: proxyController.signal });
-    clearTimeout(proxyTimeout);
-
-    if (res.ok) {
-      const json = await res.json();
-      const html = json?.contents || '';
-
-      if (html && html.length > 100) {
+      const html = await res.text();
+      if (html && html.length > 200 && !isBlockedContent(html)) {
         const doc = new DOMParser().parseFromString(html, 'text/html');
-
-        // Extract title
         const title =
-          doc.querySelector('title')?.innerText ||
-          doc.querySelector('h1')?.innerText ||
+          doc.querySelector('h1')?.textContent?.trim() ||
+          doc.querySelector('title')?.textContent?.trim() ||
           `Artikel dari ${domainName}`;
 
-        // Remove script, style, nav, footer, header
-        doc
-          .querySelectorAll('script, style, nav, header, footer, noscript, svg, form, aside')
-          .forEach((el) => el.remove());
+        doc.querySelectorAll('script, style, nav, header, footer, noscript, svg, form, aside, iframe, .advertisement, .ads').forEach((el) => el.remove());
 
-        // Extract paragraphs from article or main body
-        const container = doc.querySelector('article') || doc.querySelector('main') || doc.body;
-        const paragraphs = Array.from(container.querySelectorAll('p, h2, h3, li'))
+        // Target high-relevance article containers
+        const mainEl = doc.querySelector('.detail__body-text, [itemprop="articleBody"], .read__content, article, main, .entry-content') || doc.body;
+        const paragraphs = Array.from(mainEl.querySelectorAll('p, h2, h3'))
           .map((p) => p.textContent?.trim() || '')
-          .filter((t) => t.length > 25);
+          .filter((t) => t.length > 20 && !/^(baca juga|simak juga|editor|penulis|foto:)/i.test(t));
 
         const joinedText = paragraphs.join('\n\n');
-
-        if (joinedText && joinedText.length > 50) {
-          if (isBlockedContent(joinedText)) {
-            throw new Error(
-              `Situs web ${domainName} membatasi akses otomatis (dilindungi sistem keamanan/login). Silakan buka artikel di browser, salin teksnya, lalu tempelkan di tab "Ketik / Tempel Teks".`
-            );
-          }
-
+        if (joinedText && joinedText.length > 80) {
           const aiResult = await summarizeAndCleanArticleWithGemini(joinedText, title, targetUrl);
           const wordCount = aiResult.content.split(/\s+/).filter(Boolean).length;
 
@@ -425,13 +347,100 @@ export const extractArticleFromUrl = async (rawUrl: string): Promise<ExtractedAr
       }
     }
   } catch (err: any) {
-    if (err?.message?.includes('membatasi akses')) {
-      throw err;
+    console.warn('Fast CORS proxy skipped/failed, trying AllOrigins...', err?.message || err);
+  }
+
+  // Strategy 3: Jina Reader Plain Text mode (Fallback)
+  try {
+    const fallbackController = new AbortController();
+    const fallbackTimeout = setTimeout(() => fallbackController.abort(), 8000);
+
+    const res = await fetch(`https://r.jina.ai/${targetUrl}`, {
+      signal: fallbackController.signal,
+    });
+    clearTimeout(fallbackTimeout);
+
+    if (res.ok) {
+      const text = await res.text();
+      let title = `Artikel dari ${domainName}`;
+      let contentBody = text;
+
+      const titleMatch = text.match(/Title:\s*(.+)/i);
+      if (titleMatch && titleMatch[1]) {
+        title = titleMatch[1].trim();
+      }
+
+      const contentMatch = text.match(/Markdown Content:\s*([\s\S]+)/i);
+      if (contentMatch && contentMatch[1]) {
+        contentBody = contentMatch[1];
+      }
+
+      if (contentBody && contentBody.length > 50 && !isBlockedContent(contentBody)) {
+        const aiResult = await summarizeAndCleanArticleWithGemini(contentBody, title, targetUrl);
+        const wordCount = aiResult.content.split(/\s+/).filter(Boolean).length;
+
+        return {
+          title: aiResult.title || `Artikel dari ${domainName}`,
+          content: aiResult.content,
+          sourceUrl: targetUrl,
+          wordCount,
+        };
+      }
     }
-    console.warn('AllOrigins HTML proxy extraction failed:', err);
+  } catch (err: any) {
+    console.warn('Jina Reader plain text extraction failed:', err?.message || err);
+  }
+
+  // Strategy 4: AllOrigins CORS proxy with HTML extraction
+  try {
+    const proxyController = new AbortController();
+    const proxyTimeout = setTimeout(() => proxyController.abort(), 7000);
+
+    const proxyUrl = `https://api.allorigins.win/get?url=${encodeURIComponent(targetUrl)}`;
+    const res = await fetch(proxyUrl, { signal: proxyController.signal });
+    clearTimeout(proxyTimeout);
+
+    if (res.ok) {
+      const json = await res.json();
+      const html = json?.contents || '';
+
+      if (html && html.length > 100) {
+        const doc = new DOMParser().parseFromString(html, 'text/html');
+
+        const title =
+          doc.querySelector('h1')?.textContent?.trim() ||
+          doc.querySelector('title')?.textContent?.trim() ||
+          `Artikel dari ${domainName}`;
+
+        doc
+          .querySelectorAll('script, style, nav, header, footer, noscript, svg, form, aside')
+          .forEach((el) => el.remove());
+
+        const container = doc.querySelector('.detail__body-text, article, main, [itemprop="articleBody"]') || doc.body;
+        const paragraphs = Array.from(container.querySelectorAll('p, h2, h3, li'))
+          .map((p) => p.textContent?.trim() || '')
+          .filter((t) => t.length > 25);
+
+        const joinedText = paragraphs.join('\n\n');
+
+        if (joinedText && joinedText.length > 50 && !isBlockedContent(joinedText)) {
+          const aiResult = await summarizeAndCleanArticleWithGemini(joinedText, title, targetUrl);
+          const wordCount = aiResult.content.split(/\s+/).filter(Boolean).length;
+
+          return {
+            title: aiResult.title || `Artikel dari ${domainName}`,
+            content: aiResult.content,
+            sourceUrl: targetUrl,
+            wordCount,
+          };
+        }
+      }
+    }
+  } catch (err: any) {
+    console.warn('AllOrigins HTML proxy extraction failed:', err?.message || err);
   }
 
   throw new Error(
-    `Tidak dapat mengambil teks dari ${domainName}. Halaman mungkin memerlukan autentikasi login atau dibatasi oleh pemilik situs. Anda juga dapat menyalin-tempel teks artikel secara langsung di tab "Ketik / Tempel Teks".`
+    `Situs web ${domainName} membatasi akses otomatis pembaca. Silakan salin teks dari artikel tersebut di browser Anda, lalu tempelkan di tab "Ketik / Tempel Teks" untuk langsung dibacakan.`
   );
 };

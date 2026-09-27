@@ -518,8 +518,8 @@ export const UniversalStudio: React.FC = () => {
 
   return (
     <div className="w-full max-w-[1536px] mx-auto px-3 sm:px-6 lg:px-8 py-6 pb-28 overflow-x-hidden">
-      {/* 2-Column Responsive Layout Matching Otter.ai & HomeWorkspace */}
-      <div className="flex flex-col lg:flex-row gap-6 lg:gap-8 items-start w-full min-w-0">
+      {/* 2-Column Responsive Layout: Controls on top during mobile input stage */}
+      <div className={`flex gap-6 lg:gap-8 items-start w-full min-w-0 ${!textContent.trim() ? 'flex-col-reverse lg:flex-row' : 'flex-col lg:flex-row'}`}>
 
         {/* ======================================================== */}
         {/* LEFT / CENTER COLUMN: Reading Canvas & Empty State       */}
@@ -917,6 +917,7 @@ export const UniversalStudio: React.FC = () => {
                                 }
                               }}
                               placeholder="https://gofood.co.id/... atau tautan artikel web lainnya"
+                              aria-label="Kolom isian tautan artikel web"
                               disabled={isLoadingUrl}
                               className="w-full text-xs px-3 py-2 rounded-xl border border-purple-200 dark:border-purple-800 bg-white dark:bg-slate-900 text-slate-900 dark:text-white focus:outline-none focus:border-purple-500 disabled:opacity-60 font-medium"
                             />
@@ -938,11 +939,22 @@ export const UniversalStudio: React.FC = () => {
                               )}
                             </button>
                             {urlError && (
-                              <div className="p-2.5 rounded-lg bg-amber-50 dark:bg-amber-950/40 border border-amber-300 dark:border-amber-800 text-amber-900 dark:text-amber-200 text-[11px] flex items-start gap-1.5">
-                                <AlertCircle className="w-3.5 h-3.5 text-amber-600 shrink-0 mt-0.5" />
-                                <div className="flex-1 leading-snug">
-                                  <p className="font-semibold">{urlError}</p>
+                              <div className="p-3 rounded-xl bg-amber-50 dark:bg-amber-950/40 border border-amber-300 dark:border-amber-800 text-amber-900 dark:text-amber-200 text-xs space-y-2">
+                                <div className="flex items-start gap-2">
+                                  <AlertCircle className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" />
+                                  <p className="font-semibold leading-relaxed text-[11px]">{urlError}</p>
                                 </div>
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    setActiveInputTab('custom');
+                                    setUrlError(null);
+                                  }}
+                                  className="w-full py-1.5 px-3 rounded-lg bg-amber-600 hover:bg-amber-700 text-white font-bold text-xs transition flex items-center justify-center gap-1.5 shadow-2xs"
+                                >
+                                  <PenLine className="w-3.5 h-3.5" />
+                                  <span>Buka Tab Tempel Teks Manual</span>
+                                </button>
                               </div>
                             )}
                           </div>

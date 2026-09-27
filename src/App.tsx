@@ -13,35 +13,66 @@ import { VoiceNavigator } from './components/accessibility/VoiceNavigator';
 import { LandingPage } from './components/landing/LandingPage';
 import { MobileBottomBar } from './components/layout/MobileBottomBar';
 
-export const AppContent: React.FC = () => {
-  // 'landing' as the default public front door; 'app' for the internal assistive workspace
-  const [viewMode, setViewMode] = useState<'landing' | 'app'>(() => {
-    try {
-      const params = new URLSearchParams(window.location.search);
-      const urlView = params.get('view');
-      if (urlView === 'app' || urlView === 'landing') return urlView;
-      // Always land on the professional landing page first by default
-      return 'landing';
-    } catch {
-      return 'landing';
-    }
-  });
-  const [activeTab, setActiveTab] = useState<string>(() => {
-    try {
-      const params = new URLSearchParams(window.location.search);
-      const urlTab = params.get('tab');
-      if (urlTab) return urlTab;
-      return localStorage.getItem('ablefy_active_tab') || 'home';
-    } catch {
-      return 'home';
-    }
-  });
+/**
+ * Parses initial route from window.location.pathname for professional clean URL structure
+ */
+const parseRouteFromPath = (): { view: 'landing' | 'app'; tab: string } => {
+  if (typeof window === 'undefined') return { view: 'landing', tab: 'home' };
+  const rawPath = window.location.pathname.toLowerCase().replace(/\/$/, '') || '/';
 
+  if (rawPath === '/beranda' || rawPath === '/home') return { view: 'app', tab: 'home' };
+  if (rawPath === '/pembaca' || rawPath === '/studio') return { view: 'app', tab: 'studio' };
+  if (rawPath === '/transkripsi' || rawPath === '/lecture') return { view: 'app', tab: 'lecture' };
+  if (rawPath === '/isyarat' || rawPath === '/bisindo') return { view: 'app', tab: 'bisindo' };
+
+  // Query parameter fallback for backwards compatibility
+  try {
+    const params = new URLSearchParams(window.location.search);
+    const view = params.get('view');
+    const tab = params.get('tab');
+    if (tab && ['home', 'studio', 'lecture', 'bisindo'].includes(tab)) {
+      return { view: 'app', tab };
+    }
+    if (view === 'app') return { view: 'app', tab: 'home' };
+  } catch (_) {}
+
+  return { view: 'landing', tab: 'home' };
+};
+
+export const AppContent: React.FC = () => {
+  const initialRoute = parseRouteFromPath();
+  const [viewMode, setViewMode] = useState<'landing' | 'app'>(initialRoute.view);
+  const [activeTab, setActiveTab] = useState<string>(initialRoute.tab);
+
+  // Sync browser URL bar with current view & tab (e.g. /beranda, /pembaca, /transkripsi, /isyarat, /)
+  const syncBrowserUrl = (view: 'landing' | 'app', tab: string, push: boolean = true) => {
+    if (typeof window === 'undefined') return;
+    const targetPath = view === 'landing' ? '/' : (
+      tab === 'studio' ? '/pembaca' :
+      tab === 'lecture' ? '/transkripsi' :
+      tab === 'bisindo' ? '/isyarat' : '/beranda'
+    );
+
+    if (window.location.pathname !== targetPath) {
+      if (push) {
+        window.history.pushState({ view, tab }, '', targetPath);
+      } else {
+        window.history.replaceState({ view, tab }, '', targetPath);
+      }
+    }
+  };
+
+  // Listen to browser Back and Forward history buttons
   useEffect(() => {
-    try {
-      localStorage.setItem('ablefy_active_tab', activeTab);
-    } catch (_) {}
-  }, [activeTab]);
+    const handlePopState = () => {
+      const current = parseRouteFromPath();
+      setViewMode(current.view);
+      setActiveTab(current.tab);
+    };
+
+    window.addEventListener('popstate', handlePopState);
+    return () => window.removeEventListener('popstate', handlePopState);
+  }, []);
 
   const [isMobileSidebarOpen, setIsMobileSidebarOpen] = useState<boolean>(false);
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState<boolean>(() => {
@@ -76,11 +107,27 @@ export const AppContent: React.FC = () => {
     });
   };
 
-  const handleLaunchApp = (tabId?: string) => {
+  const handleNavigateTab = (tabId: string) => {
+    setActiveTab(tabId);
     setViewMode('app');
-    if (tabId) {
-      setActiveTab(tabId);
-    }
+    syncBrowserUrl('app', tabId, true);
+
+    const tabNames: Record<string, string> = {
+      'home': 'Beranda',
+      'studio': 'Pembaca Teks',
+      'lecture': 'Transkripsi Wicara',
+      'bisindo': 'Bahasa Isyarat'
+    };
+    const tabName = tabNames[tabId] || 'Ruang Kerja Ablefy';
+    speakCue(`Membuka ${tabName}`);
+  };
+
+  const handleLaunchApp = (tabId?: string) => {
+    const target = tabId || 'home';
+    setViewMode('app');
+    setActiveTab(target);
+    syncBrowserUrl('app', target, true);
+
     window.scrollTo({ top: 0, behavior: 'smooth' });
     const tabNames: Record<string, string> = {
       'home': 'Beranda',
@@ -88,12 +135,13 @@ export const AppContent: React.FC = () => {
       'lecture': 'Transkripsi Wicara',
       'bisindo': 'Bahasa Isyarat'
     };
-    const tabName = tabId && tabNames[tabId] ? tabNames[tabId] : 'Ruang Kerja Ablefy';
+    const tabName = tabNames[target] || 'Ruang Kerja Ablefy';
     speakCue(`Membuka ${tabName}`);
   };
 
   const handleBackToLanding = () => {
     setViewMode('landing');
+    syncBrowserUrl('landing', 'home', true);
     window.scrollTo({ top: 0, behavior: 'smooth' });
     speakCue('Kembali ke Halaman Depan Publik');
   };
@@ -202,7 +250,7 @@ export const AppContent: React.FC = () => {
           {/* Permanent Desktop Navigation Rail & Mobile Slide-In Off-Canvas Drawer */}
           <AppSidebar
             activeTab={activeTab}
-            setActiveTab={setActiveTab}
+            setActiveTab={handleNavigateTab}
             onBackToLanding={handleBackToLanding}
             isCollapsed={isSidebarCollapsed}
             onToggleCollapse={handleToggleSidebar}
@@ -219,13 +267,13 @@ export const AppContent: React.FC = () => {
             {/* Professional Top Utility App Bar */}
             <TopAppBar
               activeTab={activeTab}
-              onNavigateTab={setActiveTab}
+              onNavigateTab={handleNavigateTab}
               onOpenMobileSidebar={() => setIsMobileSidebarOpen(true)}
             />
 
             {/* Active Module Canvas */}
             <main id="main-content" tabIndex={-1} className="flex-1 w-full max-w-full min-w-0 overflow-x-hidden focus:outline-none">
-              {activeTab === 'home' && <HomeWorkspace onNavigate={setActiveTab} />}
+              {activeTab === 'home' && <HomeWorkspace onNavigate={handleNavigateTab} />}
               {activeTab === 'lecture' && <LectureCompanion />}
               {activeTab === 'studio' && <UniversalStudio />}
               {activeTab === 'bisindo' && <SignHub />}
@@ -233,27 +281,21 @@ export const AppContent: React.FC = () => {
           </div>
 
           {/* Mobile Bottom Navigation Bar (Visible on mobile screens) */}
-          <MobileBottomBar activeTab={activeTab} setActiveTab={setActiveTab} />
+          <MobileBottomBar activeTab={activeTab} setActiveTab={handleNavigateTab} />
         </div>
       )}
 
       {/* Hands-Free Voice Navigator for Quadriplegic / No-Hand Users */}
       <VoiceNavigator
         isLanding={viewMode === 'landing'}
-        onNavigateTab={(tabId) => {
-          setViewMode('app');
-          setActiveTab(tabId);
-        }}
+        onNavigateTab={(tabId) => handleNavigateTab(tabId)}
       />
 
       {/* Motor & Single-Key Shortcut Sheet for Switch Devices & Motor-Disabled Users */}
       <MotorShortcutsModal
         isOpen={isShortcutsModalOpen}
         onClose={() => setIsShortcutsModalOpen(false)}
-        onNavigateTab={(tabId) => {
-          setViewMode('app');
-          setActiveTab(tabId);
-        }}
+        onNavigateTab={(tabId) => handleNavigateTab(tabId)}
       />
     </div>
   );
