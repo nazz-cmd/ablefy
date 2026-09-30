@@ -15,7 +15,8 @@ import {
   stopAllAudio as stopMicrosoftAudio,
   speakWithBrowserAzureFallback,
   getAudioGeneration,
-  incrementAudioGeneration
+  incrementAudioGeneration,
+  unlockMobileAudio
 } from '../services/microsoftTtsService';
 
 export type ContrastMode = 'normal' | 'yellow-black' | 'high-dark' | 'monochrome';
@@ -161,6 +162,7 @@ export const AccessibilityProvider: React.FC<{ children: ReactNode }> = ({ child
   // Mobile Audio Context & Web Speech Unlocker for iOS Safari and Android Chrome
   useEffect(() => {
     const unlockAudio = () => {
+      unlockMobileAudio();
       if (typeof window !== 'undefined' && 'speechSynthesis' in window) {
         try {
           if (window.speechSynthesis.paused) {
@@ -372,16 +374,33 @@ export const AccessibilityProvider: React.FC<{ children: ReactNode }> = ({ child
         window.speechSynthesis.resume();
       }
 
+      if (window.speechSynthesis.speaking) {
+        window.speechSynthesis.cancel();
+        if (window.speechSynthesis.paused) {
+          window.speechSynthesis.resume();
+        }
+      }
+
       const utterance = new SpeechSynthesisUtterance(text);
       utterance.lang = 'id-ID';
-      utterance.rate = 1.1; // crisp, snappy responsive UI feedback
+      utterance.rate = 1.05; // natural and clean for mobile & desktop
       utterance.pitch = 1.0;
       utterance.volume = 1.0;
 
       const voices = window.speechSynthesis.getVoices();
-      const idVoice = voices.find((v) => v.lang.startsWith('id') || v.lang.includes('ID'));
+      const idVoice = voices.find((v) => 
+        (v.lang && (v.lang.toLowerCase().startsWith('id') || v.lang.toLowerCase().includes('indonesia'))) ||
+        (v.name && v.name.toLowerCase().includes('indonesia'))
+      );
       if (idVoice) {
         utterance.voice = idVoice;
+        utterance.lang = idVoice.lang;
+      } else if (voices.length > 0) {
+        const defVoice = voices.find(v => v.default) || voices[0];
+        if (defVoice) {
+          utterance.voice = defVoice;
+          utterance.lang = defVoice.lang || 'id-ID';
+        }
       }
 
       // Pin utterance globally to prevent V8 garbage collection mid-speech
@@ -414,27 +433,8 @@ export const AccessibilityProvider: React.FC<{ children: ReactNode }> = ({ child
 
       recordRecentCue(text);
 
-      const doSpeak = () => {
-        try {
-          if (typeof window !== 'undefined' && 'speechSynthesis' in window) {
-            if (window.speechSynthesis.paused) {
-              window.speechSynthesis.resume();
-            }
-            window.speechSynthesis.speak(utterance);
-          }
-        } catch (err) {
-          console.warn('speakInstantCue doSpeak error:', err);
-        }
-      };
-
-      // In Chromium, if already speaking, cancel first then wait 25ms so IPC cancel completes
-      if (window.speechSynthesis.speaking) {
-        window.speechSynthesis.cancel();
-        if (speechResetTimerRef.current) clearTimeout(speechResetTimerRef.current);
-        speechResetTimerRef.current = setTimeout(doSpeak, 25);
-      } else {
-        doSpeak();
-      }
+      // Execute speak synchronously to preserve user activation on mobile browsers
+      window.speechSynthesis.speak(utterance);
     } catch (err) {
       console.warn('speakInstantCue error:', err);
     }
@@ -463,8 +463,8 @@ export const AccessibilityProvider: React.FC<{ children: ReactNode }> = ({ child
       const target = event.target as HTMLElement | null;
       if (!target) return;
 
-      // If an explicit action cue was spoken by the button/action within the last 250ms, do not double-announce
-      if (Date.now() - lastSpokenCueTimeRef.current < 250) return;
+      // If an explicit action cue was spoken by the button/action within the last 150ms, do not double-announce
+      if (Date.now() - lastSpokenCueTimeRef.current < 150) return;
 
       // Find the nearest interactive element (buttons, links, inputs, tabs, or clickable cards/containers)
       const interactiveEl = target.closest<HTMLElement>(
@@ -542,13 +542,17 @@ export const AccessibilityProvider: React.FC<{ children: ReactNode }> = ({ child
         }
       }
 
-      speakCue(announcement);
+      // Defer announcement to microtask so if a component onClick handler executed a custom speakCue, it takes precedence
+      queueMicrotask(() => {
+        if (Date.now() - lastSpokenCueTimeRef.current < 150) return;
+        speakCue(announcement);
+      });
     };
 
-    // Use standard bubbling phase so component onClick handlers fire first and can set explicit action cues
-    document.addEventListener('click', handleGlobalClick, { passive: true });
+    // Use capture phase so all clicks (including mobile touch and elements with stopPropagation) are captured
+    document.addEventListener('click', handleGlobalClick, { capture: true, passive: true });
     return () => {
-      document.removeEventListener('click', handleGlobalClick);
+      document.removeEventListener('click', handleGlobalClick, { capture: true });
     };
   }, [voiceCues]);
 
@@ -618,9 +622,6 @@ export const AccessibilityProvider: React.FC<{ children: ReactNode }> = ({ child
       localStorage.setItem('ablefy_large_targets', 'true');
       localStorage.setItem('ablefy_tremor_shield', 'true');
       localStorage.setItem('ablefy_voice_nav', 'true');
-      if (typeof window !== 'undefined') {
-        window.dispatchEvent(new CustomEvent('ablefy-toggle-voice-nav'));
-      }
       speakText('Profil Keterbatasan Fisik dan Motorik aktif. Navigasi suara bebas tangan, target tombol besar, dan pelindung tremor diaktifkan.');
     } else if (persona === 'educator') {
       resetToDefault();
@@ -646,9 +647,6 @@ export const AccessibilityProvider: React.FC<{ children: ReactNode }> = ({ child
       localStorage.setItem('ablefy_voice_nav', String(enabled));
     } catch (_) {}
     speakCue(enabled ? 'Navigasi suara bebas tangan aktif' : 'Navigasi suara dinonaktifkan');
-    if (enabled && typeof window !== 'undefined') {
-      window.dispatchEvent(new CustomEvent('ablefy-toggle-voice-nav'));
-    }
   };
 
   const setContrastMode = (mode: ContrastMode) => {
