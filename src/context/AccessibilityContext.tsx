@@ -16,7 +16,8 @@ import {
   speakWithBrowserAzureFallback,
   getAudioGeneration,
   incrementAudioGeneration,
-  unlockMobileAudio
+  unlockMobileAudio,
+  prefetchCommonAudioCues
 } from '../services/microsoftTtsService';
 
 export type ContrastMode = 'normal' | 'yellow-black' | 'high-dark' | 'monochrome';
@@ -159,6 +160,11 @@ export const AccessibilityProvider: React.FC<{ children: ReactNode }> = ({ child
     }
   }, []);
 
+  // Pre-cache common UI voice cues on mount for instant zero-latency playback
+  useEffect(() => {
+    prefetchCommonAudioCues();
+  }, []);
+
   // Mobile Audio Context & Web Speech Unlocker for iOS Safari and Android Chrome
   useEffect(() => {
     const unlockAudio = () => {
@@ -173,9 +179,11 @@ export const AccessibilityProvider: React.FC<{ children: ReactNode }> = ({ child
     };
 
     window.addEventListener('touchstart', unlockAudio, { passive: true });
+    window.addEventListener('pointerdown', unlockAudio, { passive: true });
     window.addEventListener('click', unlockAudio, { passive: true });
     return () => {
       window.removeEventListener('touchstart', unlockAudio);
+      window.removeEventListener('pointerdown', unlockAudio);
       window.removeEventListener('click', unlockAudio);
     };
   }, []);
@@ -374,13 +382,6 @@ export const AccessibilityProvider: React.FC<{ children: ReactNode }> = ({ child
         window.speechSynthesis.resume();
       }
 
-      if (window.speechSynthesis.speaking) {
-        window.speechSynthesis.cancel();
-        if (window.speechSynthesis.paused) {
-          window.speechSynthesis.resume();
-        }
-      }
-
       const utterance = new SpeechSynthesisUtterance(text);
       utterance.lang = 'id-ID';
       utterance.rate = 1.05; // natural and clean for mobile & desktop
@@ -444,14 +445,32 @@ export const AccessibilityProvider: React.FC<{ children: ReactNode }> = ({ child
   const lastSpokenCueTimeRef = useRef<number>(0);
   const lastSpokenCueTextRef = useRef<string>('');
 
-  const speakCue = (text: string, _personaOverride?: VoicePersona, force?: boolean) => {
+  const speakCue = (text: string, personaOverride?: VoicePersona, force?: boolean) => {
     if (!force && !voiceCuesRef.current) return;
     const cleanText = text.trim();
     if (!cleanText) return;
     lastSpokenCueTimeRef.current = Date.now();
     lastSpokenCueTextRef.current = cleanText.toLowerCase();
     recordRecentCue(cleanText);
-    speakInstantCue(cleanText);
+
+    // On mobile devices, native speech synthesis often lacks Indonesian voices or gets blocked by OS.
+    // Use Microsoft Azure Gadis Neural (via pre-cache or fast serverless API) for guaranteed audible speech!
+    const isMobileDevice = typeof navigator !== 'undefined' && /Mobi|Android|iPhone|iPad|iPod/i.test(navigator.userAgent);
+
+    if (isMobileDevice) {
+      const voiceId = personaOverride === 'educator' ? 'id-ID-ArdiNeural' : 'id-ID-GadisNeural';
+      synthesizeMicrosoftTts(cleanText, { voice: voiceId, rate: 1.05 })
+        .then((audioUrl) => {
+          if (audioUrl) {
+            playAudioUrl(audioUrl);
+          }
+        })
+        .catch(() => {
+          speakInstantCue(cleanText);
+        });
+    } else {
+      speakInstantCue(cleanText);
+    }
   };
 
   // Universal Screen Voice Guide (Panduan Suara Layar)
@@ -463,8 +482,8 @@ export const AccessibilityProvider: React.FC<{ children: ReactNode }> = ({ child
       const target = event.target as HTMLElement | null;
       if (!target) return;
 
-      // If an explicit action cue was spoken by the button/action within the last 150ms, do not double-announce
-      if (Date.now() - lastSpokenCueTimeRef.current < 150) return;
+      // If an explicit action cue was spoken by the button/action within the last 250ms, do not double-announce
+      if (Date.now() - lastSpokenCueTimeRef.current < 250) return;
 
       // Find the nearest interactive element (buttons, links, inputs, tabs, or clickable cards/containers)
       const interactiveEl = target.closest<HTMLElement>(
@@ -542,17 +561,13 @@ export const AccessibilityProvider: React.FC<{ children: ReactNode }> = ({ child
         }
       }
 
-      // Defer announcement to microtask so if a component onClick handler executed a custom speakCue, it takes precedence
-      queueMicrotask(() => {
-        if (Date.now() - lastSpokenCueTimeRef.current < 150) return;
-        speakCue(announcement);
-      });
+      speakCue(announcement);
     };
 
-    // Use capture phase so all clicks (including mobile touch and elements with stopPropagation) are captured
-    document.addEventListener('click', handleGlobalClick, { capture: true, passive: true });
+    // Use standard bubbling phase so component onClick handlers fire first and can set explicit action cues
+    document.addEventListener('click', handleGlobalClick, { passive: true });
     return () => {
-      document.removeEventListener('click', handleGlobalClick, { capture: true });
+      document.removeEventListener('click', handleGlobalClick);
     };
   }, [voiceCues]);
 

@@ -38,12 +38,23 @@ export const AZURE_INDONESIAN_VOICES: AzureVoiceOption[] = [
 // Audio URL in-memory cache for instant 0ms playback on repeated phrases
 const audioCache = new Map<string, string>();
 
-// Active audio element tracker and cancellation generation sequence
+// Active audio element tracker, shared instance for mobile unlock, and cancellation generation sequence
+let sharedAudioInstance: HTMLAudioElement | null = null;
+let sharedAudioContext: AudioContext | null = null;
 let currentAudioInstance: HTMLAudioElement | null = null;
 let activeAudioGeneration = 0;
 
 export const getAudioGeneration = (): number => activeAudioGeneration;
 export const incrementAudioGeneration = (): number => ++activeAudioGeneration;
+
+export const getSharedAudio = (): HTMLAudioElement => {
+  if (!sharedAudioInstance && typeof window !== 'undefined') {
+    sharedAudioInstance = new Audio();
+    sharedAudioInstance.setAttribute('playsinline', 'true');
+    sharedAudioInstance.setAttribute('webkit-playsinline', 'true');
+  }
+  return sharedAudioInstance!;
+};
 
 export interface AudioPlaybackOptions {
   playbackRate?: number;
@@ -107,18 +118,39 @@ export const synthesizeMicrosoftTts = async (
 export const unlockMobileAudio = (): void => {
   if (typeof window === 'undefined') return;
   try {
+    const audio = getSharedAudio();
+    if (!audio.src) {
+      // 0.05s silent WAV
+      audio.src = 'data:audio/wav;base64,UklGRigAAABXQVZFZm10IBIAAAABAAEARKwAAIhYAQACABAAAABkYXRhAgAAAAEA';
+      audio.play().then(() => {
+        audio.pause();
+      }).catch(() => {});
+    }
+  } catch (_) {}
+
+  try {
     const AudioCtx = window.AudioContext || (window as any).webkitAudioContext;
     if (AudioCtx) {
-      const dummyCtx = new AudioCtx();
-      if (dummyCtx.state === 'suspended') {
-        dummyCtx.resume().catch(() => {});
+      if (!sharedAudioContext) {
+        sharedAudioContext = new AudioCtx();
+      }
+      if (sharedAudioContext.state === 'suspended') {
+        sharedAudioContext.resume().catch(() => {});
       }
     }
   } catch (_) {}
+
+  if ('speechSynthesis' in window) {
+    try {
+      if (window.speechSynthesis.paused) {
+        window.speechSynthesis.resume();
+      }
+    } catch (_) {}
+  }
 };
 
 /**
- * Play synthesized audio URL with full lifecycle management
+ * Play synthesized audio URL with full lifecycle management and mobile unlock resilience
  */
 export const playAudioUrl = (
   audioUrl: string,
@@ -128,9 +160,12 @@ export const playAudioUrl = (
 
   return new Promise((resolve, reject) => {
     try {
-      const audio = new Audio(audioUrl);
+      const audio = getSharedAudio();
+      audio.src = audioUrl;
       if (options?.playbackRate) {
         audio.playbackRate = options.playbackRate;
+      } else {
+        audio.playbackRate = 1.0;
       }
       currentAudioInstance = audio;
 
@@ -150,12 +185,15 @@ export const playAudioUrl = (
         reject(e);
       };
 
-      audio.play().catch((err) => {
-        console.warn('Audio play request blocked or failed:', err);
-        currentAudioInstance = null;
-        options?.onError?.(err);
-        reject(err);
-      });
+      const playPromise = audio.play();
+      if (playPromise !== undefined) {
+        playPromise.catch((err) => {
+          console.warn('Audio play request blocked or failed:', err);
+          currentAudioInstance = null;
+          options?.onError?.(err);
+          reject(err);
+        });
+      }
     } catch (err) {
       currentAudioInstance = null;
       options?.onError?.(err);
@@ -231,6 +269,34 @@ export const prefetchMicrosoftTts = async (
     }
   } catch (_) {
     // Ignore prefetch errors silently
+  }
+};
+
+/**
+ * Pre-cache standard UI audio cues in memory for instant 0ms playback on mobile & desktop
+ */
+export const prefetchCommonAudioCues = async (): Promise<void> => {
+  if (typeof window === 'undefined') return;
+  const commonCues = [
+    'Panduan suara layar aktif',
+    'Panduan suara layar dinonaktifkan',
+    'Navigasi suara bebas tangan aktif',
+    'Navigasi suara dinonaktifkan',
+    'Beranda',
+    'Transkrip Bicara',
+    'Baca Isyarat',
+    'Riwayat Aktivitas',
+    'Pengaturan Suara',
+    'Panel kanan dibuka',
+    'Panel kanan ditutup',
+    'Jeda mendengar',
+    'Kontrol Suara'
+  ];
+
+  for (const text of commonCues) {
+    try {
+      await prefetchMicrosoftTts(text, { voice: 'id-ID-GadisNeural', rate: 1.0 });
+    } catch (_) {}
   }
 };
 
