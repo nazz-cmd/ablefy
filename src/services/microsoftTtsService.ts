@@ -151,26 +151,6 @@ export const unlockMobileAudio = (): void => {
 
 let isAudioPlaying = false;
 let lastAudioEndTime = 0;
-let hardwareAecStream: MediaStream | null = null;
-
-/**
- * Enable hardware acoustic echo cancellation on device's audio chipset
- */
-export const enableHardwareEchoCancellation = async (): Promise<void> => {
-  if (hardwareAecStream) return;
-  if (typeof navigator !== 'undefined' && navigator.mediaDevices && navigator.mediaDevices.getUserMedia) {
-    try {
-      hardwareAecStream = await navigator.mediaDevices.getUserMedia({
-        audio: {
-          echoCancellation: true,
-          noiseSuppression: true,
-          autoGainControl: true
-        }
-      });
-    } catch (_) {}
-  }
-};
-
 export const isSystemAudioPlaying = (): boolean => {
   return isAudioPlaying || (Date.now() - lastAudioEndTime < 350);
 };

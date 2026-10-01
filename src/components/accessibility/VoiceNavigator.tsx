@@ -8,7 +8,6 @@ import {
 import { useAccessibility } from '../../context/AccessibilityContext';
 import { classifyIndonesianVoiceIntent } from '../../utils/nlpIntentClassifier';
 import { RealtimeAudioWave } from '../common/RealtimeAudioWave';
-import { enableHardwareEchoCancellation } from '../../services/microsoftTtsService';
 
 interface VoiceNavigatorProps {
   onNavigateTab: (tabId: string) => void;
@@ -93,7 +92,7 @@ export const VoiceNavigator: React.FC<VoiceNavigatorProps> = ({ onNavigateTab, i
     return () => window.removeEventListener('ablefy-recording-status', handleRecordingStatus);
   }, []);
 
-  // Listen to system audio and voice cues (Panduan Suara) to prevent voice collision
+  // Listen to system audio and voice cues (Panduan Suara) to prevent voice collision and self-looping
   const isSystemSpeakingRef = useRef<boolean>(false);
   const lastSystemSpeakingEndTimeRef = useRef<number>(0);
 
@@ -102,8 +101,27 @@ export const VoiceNavigator: React.FC<VoiceNavigatorProps> = ({ onNavigateTab, i
       const customEvent = e as CustomEvent<{ speaking: boolean; text?: string }>;
       const isSpk = !!customEvent.detail?.speaking;
       isSystemSpeakingRef.current = isSpk;
-      if (!isSpk) {
+
+      if (isSpk) {
+        // System speaker is actively talking: abort mic recognition to prevent internal loopback!
+        clearTimeout(restartTimeoutRef.current);
+        clearTimeout(interimCommandTimerRef.current);
+        pendingCommandRef.current = '';
+        setLiveTranscript('');
+        if (recognitionRef.current) {
+          try {
+            recognitionRef.current.abort();
+          } catch (_) {}
+        }
+      } else {
         lastSystemSpeakingEndTimeRef.current = Date.now();
+        // Speaker has finished talking: wait 350ms for acoustic decay then resume listening
+        clearTimeout(restartTimeoutRef.current);
+        restartTimeoutRef.current = setTimeout(() => {
+          if (voiceNavActiveRef.current && !permissionErrorRef.current && !isLiveTranscribingRef.current && !isSystemSpeakingRef.current) {
+            startRecognition();
+          }
+        }, 350);
       }
     };
     window.addEventListener('ablefy-system-speaking', handleSystemSpeaking);
@@ -309,10 +327,8 @@ export const VoiceNavigator: React.FC<VoiceNavigatorProps> = ({ onNavigateTab, i
 
   const startRecognition = () => {
     if (!voiceNavActiveRef.current || isLiveTranscribingRef.current || permissionErrorRef.current) return;
+    if (isSystemSpeakingRef.current || (typeof window !== 'undefined' && (window as any).__ablefyAudioPlaying)) return;
     if (isStartingRecognitionRef.current) return;
-
-    // Engage hardware acoustic echo cancellation (DSP) on mobile & desktop
-    enableHardwareEchoCancellation().catch(() => {});
 
     const SpeechAPI = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
     if (!SpeechAPI) {
@@ -324,8 +340,6 @@ export const VoiceNavigator: React.FC<VoiceNavigatorProps> = ({ onNavigateTab, i
     }
 
     isStartingRecognitionRef.current = true;
-    permissionErrorRef.current = null;
-    setPermissionError(null);
 
     // Completely abort and unbind previous instance to prevent deadlocks and leaks
     if (recognitionRef.current) {
@@ -340,7 +354,7 @@ export const VoiceNavigator: React.FC<VoiceNavigatorProps> = ({ onNavigateTab, i
     }
 
     const initInstance = () => {
-      if (!voiceNavActiveRef.current || isLiveTranscribingRef.current || permissionErrorRef.current) {
+      if (!voiceNavActiveRef.current || isLiveTranscribingRef.current || permissionErrorRef.current || isSystemSpeakingRef.current) {
         isStartingRecognitionRef.current = false;
         return;
       }
@@ -448,8 +462,8 @@ export const VoiceNavigator: React.FC<VoiceNavigatorProps> = ({ onNavigateTab, i
             setLiveTranscript('Koneksi layanan suara lambat');
             setTimeout(() => setLiveTranscript(''), 2000);
           }
-          setIsListening(false);
-          isListeningRef.current = false;
+          // Do NOT set isListening to false for non-fatal errors ('no-speech', 'audio-capture', 'aborted')
+          // because onend will automatically restart recognition!
         };
 
         recognition.onend = () => {
@@ -458,6 +472,11 @@ export const VoiceNavigator: React.FC<VoiceNavigatorProps> = ({ onNavigateTab, i
           if (pendingCommandRef.current.trim()) {
             executeCommand(pendingCommandRef.current.trim());
             pendingCommandRef.current = '';
+          }
+
+          // If system audio is currently speaking out loud, pause and wait for handleSystemSpeaking
+          if (isSystemSpeakingRef.current || (typeof window !== 'undefined' && (window as any).__ablefyAudioPlaying)) {
+            return;
           }
 
           // If stopped by user, permission blocked, or tab hidden, cleanly exit
@@ -470,10 +489,10 @@ export const VoiceNavigator: React.FC<VoiceNavigatorProps> = ({ onNavigateTab, i
           // Restart cleanly for continuous hands-free navigation on both mobile and desktop
           clearTimeout(restartTimeoutRef.current);
           restartTimeoutRef.current = setTimeout(() => {
-            if (voiceNavActiveRef.current && !permissionErrorRef.current && !isLiveTranscribingRef.current) {
+            if (voiceNavActiveRef.current && !permissionErrorRef.current && !isLiveTranscribingRef.current && !isSystemSpeakingRef.current) {
               startRecognition();
             }
-          }, isMobile ? 250 : 200);
+          }, isMobile ? 300 : 200);
         };
 
         listeningStartTimeRef.current = Date.now();
@@ -482,8 +501,18 @@ export const VoiceNavigator: React.FC<VoiceNavigatorProps> = ({ onNavigateTab, i
       } catch (err) {
         isStartingRecognitionRef.current = false;
         console.warn('Start recognition instance error:', err);
-        setIsListening(false);
-        isListeningRef.current = false;
+        // On mobile, if start() threw an error (e.g. mic busy), retry after a short delay
+        if (voiceNavActiveRef.current && !permissionErrorRef.current && !isLiveTranscribingRef.current && !isSystemSpeakingRef.current) {
+          clearTimeout(restartTimeoutRef.current);
+          restartTimeoutRef.current = setTimeout(() => {
+            if (voiceNavActiveRef.current && !permissionErrorRef.current && !isLiveTranscribingRef.current) {
+              startRecognition();
+            }
+          }, 500);
+        } else {
+          setIsListening(false);
+          isListeningRef.current = false;
+        }
       }
     };
 
@@ -529,6 +558,23 @@ export const VoiceNavigator: React.FC<VoiceNavigatorProps> = ({ onNavigateTab, i
     };
     document.addEventListener('visibilitychange', handleVisibilityChange);
     return () => document.removeEventListener('visibilitychange', handleVisibilityChange);
+  }, []);
+
+  // Unlock / initiate speech recognition on mobile upon direct touch or click
+  useEffect(() => {
+    const handleUserGesture = () => {
+      if (voiceNavActiveRef.current && !isListeningRef.current && !isLiveTranscribingRef.current) {
+        permissionErrorRef.current = null;
+        setPermissionError(null);
+        startRecognition();
+      }
+    };
+    window.addEventListener('touchstart', handleUserGesture, { passive: true, once: true });
+    window.addEventListener('click', handleUserGesture, { passive: true, once: true });
+    return () => {
+      window.removeEventListener('touchstart', handleUserGesture);
+      window.removeEventListener('click', handleUserGesture);
+    };
   }, []);
 
   // Hands-free auto-start when voiceNavActive is toggled on both desktop & mobile
