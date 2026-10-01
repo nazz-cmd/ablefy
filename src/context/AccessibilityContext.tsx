@@ -413,8 +413,8 @@ export const AccessibilityProvider: React.FC<{ children: ReactNode }> = ({ child
       utterance.onstart = () => {
         // Dispatch custom event to notify VoiceNavigator without re-rendering the whole React tree
         if (typeof window !== 'undefined') {
-          (window as any).__ablefySystemSpeaking = true;
-          (window as any).__ablefyLastSystemSpeakingTime = Date.now();
+          (window as any).__ablefyAudioPlaying = true;
+          (window as any).__ablefyLastAudioEndTime = 0;
           window.dispatchEvent(new CustomEvent('ablefy-system-speaking', { detail: { speaking: true, text } }));
         }
       };
@@ -427,11 +427,9 @@ export const AccessibilityProvider: React.FC<{ children: ReactNode }> = ({ child
           (window as any).__ablefyActiveUtterance = null;
         }
         if (typeof window !== 'undefined') {
-          (window as any).__ablefyLastSystemSpeakingTime = Date.now();
-          setTimeout(() => {
-            (window as any).__ablefySystemSpeaking = false;
-            window.dispatchEvent(new CustomEvent('ablefy-system-speaking', { detail: { speaking: false, text } }));
-          }, 1000);
+          (window as any).__ablefyAudioPlaying = false;
+          (window as any).__ablefyLastAudioEndTime = Date.now();
+          window.dispatchEvent(new CustomEvent('ablefy-system-speaking', { detail: { speaking: false, text } }));
         }
       };
 

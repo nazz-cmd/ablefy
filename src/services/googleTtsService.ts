@@ -213,8 +213,8 @@ export const playBase64Audio = (
 
       audio.onplay = () => {
         if (typeof window !== 'undefined') {
-          (window as any).__ablefySystemSpeaking = true;
-          (window as any).__ablefyLastSystemSpeakingTime = Date.now();
+          (window as any).__ablefyAudioPlaying = true;
+          (window as any).__ablefyLastAudioEndTime = 0;
           window.dispatchEvent(new CustomEvent('ablefy-system-speaking', { detail: { speaking: true } }));
         }
         options?.onStart?.();
@@ -223,11 +223,9 @@ export const playBase64Audio = (
       audio.onended = () => {
         currentAudioInstance = null;
         if (typeof window !== 'undefined') {
-          (window as any).__ablefyLastSystemSpeakingTime = Date.now();
-          setTimeout(() => {
-            (window as any).__ablefySystemSpeaking = false;
-            window.dispatchEvent(new CustomEvent('ablefy-system-speaking', { detail: { speaking: false } }));
-          }, 1000);
+          (window as any).__ablefyAudioPlaying = false;
+          (window as any).__ablefyLastAudioEndTime = Date.now();
+          window.dispatchEvent(new CustomEvent('ablefy-system-speaking', { detail: { speaking: false } }));
         }
         options?.onEnd?.();
         resolve(audio);
@@ -236,7 +234,8 @@ export const playBase64Audio = (
       audio.onerror = (e) => {
         currentAudioInstance = null;
         if (typeof window !== 'undefined') {
-          (window as any).__ablefySystemSpeaking = false;
+          (window as any).__ablefyAudioPlaying = false;
+          (window as any).__ablefyLastAudioEndTime = Date.now();
           window.dispatchEvent(new CustomEvent('ablefy-system-speaking', { detail: { speaking: false } }));
         }
         options?.onError?.(e);
@@ -246,7 +245,8 @@ export const playBase64Audio = (
       audio.play().catch((err) => {
         currentAudioInstance = null;
         if (typeof window !== 'undefined') {
-          (window as any).__ablefySystemSpeaking = false;
+          (window as any).__ablefyAudioPlaying = false;
+          (window as any).__ablefyLastAudioEndTime = Date.now();
           window.dispatchEvent(new CustomEvent('ablefy-system-speaking', { detail: { speaking: false } }));
         }
         options?.onError?.(err);
@@ -255,7 +255,8 @@ export const playBase64Audio = (
     } catch (err) {
       currentAudioInstance = null;
       if (typeof window !== 'undefined') {
-        (window as any).__ablefySystemSpeaking = false;
+        (window as any).__ablefyAudioPlaying = false;
+        (window as any).__ablefyLastAudioEndTime = Date.now();
         window.dispatchEvent(new CustomEvent('ablefy-system-speaking', { detail: { speaking: false } }));
       }
       options?.onError?.(err);

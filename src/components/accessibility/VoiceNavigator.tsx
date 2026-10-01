@@ -8,6 +8,7 @@ import {
 import { useAccessibility } from '../../context/AccessibilityContext';
 import { classifyIndonesianVoiceIntent } from '../../utils/nlpIntentClassifier';
 import { RealtimeAudioWave } from '../common/RealtimeAudioWave';
+import { enableHardwareEchoCancellation } from '../../services/microsoftTtsService';
 
 interface VoiceNavigatorProps {
   onNavigateTab: (tabId: string) => void;
@@ -125,8 +126,6 @@ export const VoiceNavigator: React.FC<VoiceNavigatorProps> = ({ onNavigateTab, i
     lastCommandTimeRef.current = Date.now();
     if (typeof window !== 'undefined') {
       (window as any).__ablefyVoiceActionInProgress = Date.now();
-      (window as any).__ablefySystemSpeaking = true;
-      (window as any).__ablefyLastSystemSpeakingTime = Date.now();
     }
     if (label) {
       setSuccessMessage(label);
@@ -223,14 +222,12 @@ export const VoiceNavigator: React.FC<VoiceNavigatorProps> = ({ onNavigateTab, i
   };
 
   const processCommand = (phrase: string): boolean => {
-    const phraseLower = phrase.toLowerCase().trim();
-
-    // 1. Two-way echo suppression: filter audio feedback from Panduan Suara & system TTS
+    // 1. Hardware-assisted echo gate: filter audio feedback during active speaker playback
     const now = Date.now();
     const isAudioPlaying = 
       typeof window !== 'undefined' && 
-      (Boolean((window as any).__ablefySystemSpeaking) || 
-       (now - ((window as any).__ablefyLastSystemSpeakingTime || 0) < 1200));
+      (Boolean((window as any).__ablefyAudioPlaying) || 
+       (now - ((window as any).__ablefyLastAudioEndTime || 0) < 350));
 
     const isBrowserSpeaking = 
       typeof window !== 'undefined' && 
@@ -240,34 +237,9 @@ export const VoiceNavigator: React.FC<VoiceNavigatorProps> = ({ onNavigateTab, i
       isSpeaking || 
       isSystemSpeakingRef.current || 
       isAudioPlaying || 
-      isBrowserSpeaking || 
-      (now - lastSpokenResponseTimeRef.current < 2500) || 
-      (now - lastSystemSpeakingEndTimeRef.current < 1000);
+      isBrowserSpeaking;
 
-    // Check against recent screen reader cues (exact phrase or tokenized keyword echo within 4.5s)
-    const recentCues: Array<{ text: string; tokens?: string[]; time: number }> = 
-      (typeof window !== 'undefined' && (window as any).__ablefyRecentCues) || [];
-    
-    const cleanMicWords = phraseLower.replace(/[^\w\s]/g, '').split(/\s+/).filter(w => w.length > 2);
-
-    const isMatchingRecentCue = recentCues.some(c => {
-      if (now - c.time > 4500) return false;
-      const cueTokens = c.tokens || c.text.toLowerCase().replace(/[^\w\s]/g, '').split(/\s+/).filter(w => w.length > 2);
-      const commonWords = cleanMicWords.filter(w => cueTokens.includes(w));
-      return commonWords.length > 0 && (
-        commonWords.some(w => ['beranda', 'pembaca', 'transkrip', 'transkripsi', 'isyarat', 'bisindo', 'panduan', 'suara', 'kontras', 'disleksia', 'tremor', 'dokumen'].includes(w)) ||
-        commonWords.length >= Math.min(cleanMicWords.length, cueTokens.length) * 0.5
-      );
-    });
-
-    const isMatchingLastSpokenResponse = 
-      Boolean(lastSpokenResponseRef.current) && 
-      (now - lastSpokenResponseTimeRef.current < 3500) && (
-        phraseLower === lastSpokenResponseRef.current.toLowerCase() ||
-        cleanMicWords.some(w => ['beranda', 'pembaca', 'transkrip', 'transkripsi', 'isyarat', 'bisindo', 'panduan', 'suara'].includes(w) && lastSpokenResponseRef.current.toLowerCase().includes(w))
-      );
-
-    if (isCurrentlySpeaking || isMatchingRecentCue || isMatchingLastSpokenResponse) {
+    if (isCurrentlySpeaking) {
       return false;
     }
 
@@ -339,6 +311,9 @@ export const VoiceNavigator: React.FC<VoiceNavigatorProps> = ({ onNavigateTab, i
     if (!voiceNavActiveRef.current || isLiveTranscribingRef.current || permissionErrorRef.current) return;
     if (isStartingRecognitionRef.current) return;
 
+    // Engage hardware acoustic echo cancellation (DSP) on mobile & desktop
+    enableHardwareEchoCancellation().catch(() => {});
+
     const SpeechAPI = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
     if (!SpeechAPI) {
       setIsListening(false);
@@ -405,12 +380,12 @@ export const VoiceNavigator: React.FC<VoiceNavigatorProps> = ({ onNavigateTab, i
           const currentSpeech = (final || interim).trim();
           if (!currentSpeech) return;
 
-          // Check if device is actively speaking (Panduan Suara, screen reader cue, or TTS)
+          // Check if device speaker is actively playing audio (Panduan Suara / TTS)
           const now = Date.now();
           const isAudioPlaying = 
             typeof window !== 'undefined' && 
-            (Boolean((window as any).__ablefySystemSpeaking) || 
-             (now - ((window as any).__ablefyLastSystemSpeakingTime || 0) < 1200));
+            (Boolean((window as any).__ablefyAudioPlaying) || 
+             (now - ((window as any).__ablefyLastAudioEndTime || 0) < 350));
 
           const isBrowserSpeaking = 
             typeof window !== 'undefined' && 
@@ -420,33 +395,9 @@ export const VoiceNavigator: React.FC<VoiceNavigatorProps> = ({ onNavigateTab, i
             isSpeaking || 
             isSystemSpeakingRef.current || 
             isAudioPlaying || 
-            isBrowserSpeaking || 
-            (now - lastSystemSpeakingEndTimeRef.current < 1000) || 
-            (now - lastSpokenResponseTimeRef.current < 2500);
+            isBrowserSpeaking;
 
-          const currentLower = currentSpeech.toLowerCase();
-          const cleanMicWords = currentLower.replace(/[^\w\s]/g, '').split(/\s+/).filter(w => w.length > 2);
-          const recentCues: Array<{ text: string; tokens?: string[]; time: number }> = 
-            (typeof window !== 'undefined' && (window as any).__ablefyRecentCues) || [];
-
-          const isMatchingRecentCue = recentCues.some(c => {
-            if (now - c.time > 4500) return false;
-            const cueTokens = c.tokens || c.text.toLowerCase().replace(/[^\w\s]/g, '').split(/\s+/).filter(w => w.length > 2);
-            const commonWords = cleanMicWords.filter(w => cueTokens.includes(w));
-            return commonWords.length > 0 && (
-              commonWords.some(w => ['beranda', 'pembaca', 'transkrip', 'transkripsi', 'isyarat', 'bisindo', 'panduan', 'suara', 'kontras', 'disleksia', 'tremor', 'dokumen'].includes(w)) ||
-              commonWords.length >= Math.min(cleanMicWords.length, cueTokens.length) * 0.5
-            );
-          });
-
-          const isMatchingLastSpokenResponse = 
-            Boolean(lastSpokenResponseRef.current) && 
-            (now - lastSpokenResponseTimeRef.current < 3500) && (
-              currentLower === lastSpokenResponseRef.current.toLowerCase() ||
-              cleanMicWords.some(w => ['beranda', 'pembaca', 'transkrip', 'transkripsi', 'isyarat', 'bisindo', 'panduan', 'suara'].includes(w) && lastSpokenResponseRef.current.toLowerCase().includes(w))
-            );
-
-          if (isDeviceSpeaking || isMatchingRecentCue || isMatchingLastSpokenResponse) {
+          if (isDeviceSpeaking) {
             return;
           }
 
@@ -516,19 +467,13 @@ export const VoiceNavigator: React.FC<VoiceNavigatorProps> = ({ onNavigateTab, i
             return;
           }
 
-          if (isMobile) {
-            // On mobile, finish single utterance cleanly and return to ready state
-            setIsListening(false);
-            isListeningRef.current = false;
-          } else {
-            // Restart cleanly for continuous hands-free navigation on desktop
-            clearTimeout(restartTimeoutRef.current);
-            restartTimeoutRef.current = setTimeout(() => {
-              if (voiceNavActiveRef.current && !permissionErrorRef.current && !isLiveTranscribingRef.current) {
-                startRecognition();
-              }
-            }, 200);
-          }
+          // Restart cleanly for continuous hands-free navigation on both mobile and desktop
+          clearTimeout(restartTimeoutRef.current);
+          restartTimeoutRef.current = setTimeout(() => {
+            if (voiceNavActiveRef.current && !permissionErrorRef.current && !isLiveTranscribingRef.current) {
+              startRecognition();
+            }
+          }, isMobile ? 250 : 200);
         };
 
         listeningStartTimeRef.current = Date.now();
@@ -574,28 +519,23 @@ export const VoiceNavigator: React.FC<VoiceNavigatorProps> = ({ onNavigateTab, i
     }
   };
 
-  // Re-engage voice recognition automatically when app returns to foreground on desktop
+  // Re-engage voice recognition automatically when app returns to foreground
   useEffect(() => {
     const handleVisibilityChange = () => {
-      if (!isMobile && document.visibilityState === 'visible' && voiceNavActiveRef.current && !permissionErrorRef.current && !isLiveTranscribingRef.current) {
+      if (document.visibilityState === 'visible' && voiceNavActiveRef.current && !permissionErrorRef.current && !isLiveTranscribingRef.current) {
         listeningStartTimeRef.current = Date.now();
         startRecognition();
       }
     };
     document.addEventListener('visibilitychange', handleVisibilityChange);
     return () => document.removeEventListener('visibilitychange', handleVisibilityChange);
-  }, [isMobile]);
+  }, []);
 
-  // Hands-free auto-start on desktop, ready-state on mobile (avoids mobile gesture lock)
+  // Hands-free auto-start when voiceNavActive is toggled on both desktop & mobile
   useEffect(() => {
     if (voiceNavActive) {
       voiceNavActiveRef.current = true;
-      if (!isMobile) {
-        startRecognition();
-      } else {
-        setIsListening(false);
-        isListeningRef.current = false;
-      }
+      startRecognition();
     } else {
       clearTimeout(restartTimeoutRef.current);
       if (recognitionRef.current) {
@@ -620,7 +560,7 @@ export const VoiceNavigator: React.FC<VoiceNavigatorProps> = ({ onNavigateTab, i
         recognitionRef.current = null;
       }
     };
-  }, [voiceNavActive, isMobile]);
+  }, [voiceNavActive]);
 
   if (!voiceNavActive) {
     return (

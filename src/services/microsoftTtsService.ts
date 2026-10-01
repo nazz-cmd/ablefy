@@ -151,10 +151,28 @@ export const unlockMobileAudio = (): void => {
 
 let isAudioPlaying = false;
 let lastAudioEndTime = 0;
-let systemSpeakingBufferTimer: any = null;
+let hardwareAecStream: MediaStream | null = null;
+
+/**
+ * Enable hardware acoustic echo cancellation on device's audio chipset
+ */
+export const enableHardwareEchoCancellation = async (): Promise<void> => {
+  if (hardwareAecStream) return;
+  if (typeof navigator !== 'undefined' && navigator.mediaDevices && navigator.mediaDevices.getUserMedia) {
+    try {
+      hardwareAecStream = await navigator.mediaDevices.getUserMedia({
+        audio: {
+          echoCancellation: true,
+          noiseSuppression: true,
+          autoGainControl: true
+        }
+      });
+    } catch (_) {}
+  }
+};
 
 export const isSystemAudioPlaying = (): boolean => {
-  return isAudioPlaying || (Date.now() - lastAudioEndTime < 1000);
+  return isAudioPlaying || (Date.now() - lastAudioEndTime < 350);
 };
 
 /**
@@ -179,13 +197,9 @@ export const playAudioUrl = (
 
       audio.onplay = () => {
         isAudioPlaying = true;
-        if (systemSpeakingBufferTimer) {
-          clearTimeout(systemSpeakingBufferTimer);
-          systemSpeakingBufferTimer = null;
-        }
         if (typeof window !== 'undefined') {
-          (window as any).__ablefySystemSpeaking = true;
-          (window as any).__ablefyLastSystemSpeakingTime = Date.now();
+          (window as any).__ablefyAudioPlaying = true;
+          (window as any).__ablefyLastAudioEndTime = 0;
           window.dispatchEvent(new CustomEvent('ablefy-system-speaking', { detail: { speaking: true, url: audioUrl } }));
         }
         options?.onStart?.();
@@ -196,15 +210,9 @@ export const playAudioUrl = (
         lastAudioEndTime = Date.now();
         currentAudioInstance = null;
         if (typeof window !== 'undefined') {
-          (window as any).__ablefyLastSystemSpeakingTime = Date.now();
-          if (systemSpeakingBufferTimer) clearTimeout(systemSpeakingBufferTimer);
-          // Keep system speaking flag active for 1000ms after audio ends so acoustic room reverb/buffers decay
-          systemSpeakingBufferTimer = setTimeout(() => {
-            if (!isAudioPlaying) {
-              (window as any).__ablefySystemSpeaking = false;
-              window.dispatchEvent(new CustomEvent('ablefy-system-speaking', { detail: { speaking: false } }));
-            }
-          }, 1000);
+          (window as any).__ablefyAudioPlaying = false;
+          (window as any).__ablefyLastAudioEndTime = Date.now();
+          window.dispatchEvent(new CustomEvent('ablefy-system-speaking', { detail: { speaking: false } }));
         }
         options?.onEnd?.();
         resolve(audio);
@@ -217,7 +225,8 @@ export const playAudioUrl = (
         lastAudioEndTime = Date.now();
         currentAudioInstance = null;
         if (typeof window !== 'undefined') {
-          (window as any).__ablefySystemSpeaking = false;
+          (window as any).__ablefyAudioPlaying = false;
+          (window as any).__ablefyLastAudioEndTime = Date.now();
           window.dispatchEvent(new CustomEvent('ablefy-system-speaking', { detail: { speaking: false } }));
         }
         options?.onError?.(e);
@@ -232,7 +241,8 @@ export const playAudioUrl = (
           lastAudioEndTime = Date.now();
           currentAudioInstance = null;
           if (typeof window !== 'undefined') {
-            (window as any).__ablefySystemSpeaking = false;
+            (window as any).__ablefyAudioPlaying = false;
+            (window as any).__ablefyLastAudioEndTime = Date.now();
             window.dispatchEvent(new CustomEvent('ablefy-system-speaking', { detail: { speaking: false } }));
           }
           options?.onError?.(err);
@@ -244,7 +254,8 @@ export const playAudioUrl = (
       lastAudioEndTime = Date.now();
       currentAudioInstance = null;
       if (typeof window !== 'undefined') {
-        (window as any).__ablefySystemSpeaking = false;
+        (window as any).__ablefyAudioPlaying = false;
+        (window as any).__ablefyLastAudioEndTime = Date.now();
         window.dispatchEvent(new CustomEvent('ablefy-system-speaking', { detail: { speaking: false } }));
       }
       options?.onError?.(err);
@@ -291,12 +302,9 @@ export const resumeCurrentAudio = (): void => {
 export const stopAllAudio = (): void => {
   isAudioPlaying = false;
   lastAudioEndTime = Date.now();
-  if (systemSpeakingBufferTimer) {
-    clearTimeout(systemSpeakingBufferTimer);
-    systemSpeakingBufferTimer = null;
-  }
   if (typeof window !== 'undefined') {
-    (window as any).__ablefySystemSpeaking = false;
+    (window as any).__ablefyAudioPlaying = false;
+    (window as any).__ablefyLastAudioEndTime = Date.now();
     window.dispatchEvent(new CustomEvent('ablefy-system-speaking', { detail: { speaking: false } }));
   }
 
