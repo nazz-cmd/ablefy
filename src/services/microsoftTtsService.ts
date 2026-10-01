@@ -149,6 +149,14 @@ export const unlockMobileAudio = (): void => {
   }
 };
 
+let isAudioPlaying = false;
+let lastAudioEndTime = 0;
+let systemSpeakingBufferTimer: any = null;
+
+export const isSystemAudioPlaying = (): boolean => {
+  return isAudioPlaying || (Date.now() - lastAudioEndTime < 1000);
+};
+
 /**
  * Play synthesized audio URL with full lifecycle management and mobile unlock resilience
  */
@@ -170,17 +178,48 @@ export const playAudioUrl = (
       currentAudioInstance = audio;
 
       audio.onplay = () => {
+        isAudioPlaying = true;
+        if (systemSpeakingBufferTimer) {
+          clearTimeout(systemSpeakingBufferTimer);
+          systemSpeakingBufferTimer = null;
+        }
+        if (typeof window !== 'undefined') {
+          (window as any).__ablefySystemSpeaking = true;
+          (window as any).__ablefyLastSystemSpeakingTime = Date.now();
+          window.dispatchEvent(new CustomEvent('ablefy-system-speaking', { detail: { speaking: true, url: audioUrl } }));
+        }
         options?.onStart?.();
       };
 
-      audio.onended = () => {
+      const handleAudioEnd = () => {
+        isAudioPlaying = false;
+        lastAudioEndTime = Date.now();
         currentAudioInstance = null;
+        if (typeof window !== 'undefined') {
+          (window as any).__ablefyLastSystemSpeakingTime = Date.now();
+          if (systemSpeakingBufferTimer) clearTimeout(systemSpeakingBufferTimer);
+          // Keep system speaking flag active for 1000ms after audio ends so acoustic room reverb/buffers decay
+          systemSpeakingBufferTimer = setTimeout(() => {
+            if (!isAudioPlaying) {
+              (window as any).__ablefySystemSpeaking = false;
+              window.dispatchEvent(new CustomEvent('ablefy-system-speaking', { detail: { speaking: false } }));
+            }
+          }, 1000);
+        }
         options?.onEnd?.();
         resolve(audio);
       };
 
+      audio.onended = handleAudioEnd;
+
       audio.onerror = (e) => {
+        isAudioPlaying = false;
+        lastAudioEndTime = Date.now();
         currentAudioInstance = null;
+        if (typeof window !== 'undefined') {
+          (window as any).__ablefySystemSpeaking = false;
+          window.dispatchEvent(new CustomEvent('ablefy-system-speaking', { detail: { speaking: false } }));
+        }
         options?.onError?.(e);
         reject(e);
       };
@@ -189,13 +228,25 @@ export const playAudioUrl = (
       if (playPromise !== undefined) {
         playPromise.catch((err) => {
           console.warn('Audio play request blocked or failed:', err);
+          isAudioPlaying = false;
+          lastAudioEndTime = Date.now();
           currentAudioInstance = null;
+          if (typeof window !== 'undefined') {
+            (window as any).__ablefySystemSpeaking = false;
+            window.dispatchEvent(new CustomEvent('ablefy-system-speaking', { detail: { speaking: false } }));
+          }
           options?.onError?.(err);
           reject(err);
         });
       }
     } catch (err) {
+      isAudioPlaying = false;
+      lastAudioEndTime = Date.now();
       currentAudioInstance = null;
+      if (typeof window !== 'undefined') {
+        (window as any).__ablefySystemSpeaking = false;
+        window.dispatchEvent(new CustomEvent('ablefy-system-speaking', { detail: { speaking: false } }));
+      }
       options?.onError?.(err);
       reject(err);
     }
@@ -238,10 +289,24 @@ export const resumeCurrentAudio = (): void => {
  * Stop any active audio element and browser speech synthesis
  */
 export const stopAllAudio = (): void => {
+  isAudioPlaying = false;
+  lastAudioEndTime = Date.now();
+  if (systemSpeakingBufferTimer) {
+    clearTimeout(systemSpeakingBufferTimer);
+    systemSpeakingBufferTimer = null;
+  }
+  if (typeof window !== 'undefined') {
+    (window as any).__ablefySystemSpeaking = false;
+    window.dispatchEvent(new CustomEvent('ablefy-system-speaking', { detail: { speaking: false } }));
+  }
+
   if (currentAudioInstance) {
     try {
       currentAudioInstance.pause();
       currentAudioInstance.currentTime = 0;
+      currentAudioInstance.onplay = null;
+      currentAudioInstance.onended = null;
+      currentAudioInstance.onerror = null;
     } catch (_) {}
     currentAudioInstance = null;
   }

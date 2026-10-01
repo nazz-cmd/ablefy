@@ -369,9 +369,11 @@ export const AccessibilityProvider: React.FC<{ children: ReactNode }> = ({ child
       (window as any).__ablefyRecentCues = [];
     }
     const list = (window as any).__ablefyRecentCues;
-    list.push({ text: clean, time: Date.now() });
+    const tokens = clean.replace(/[^\w\s]/g, '').split(/\s+/).filter((w: string) => w.length > 2);
+    list.push({ text: clean, tokens, time: Date.now() });
     // Keep only cues spoken in the last 6 seconds
     (window as any).__ablefyRecentCues = list.filter((item: any) => Date.now() - item.time < 6000);
+    (window as any).__ablefyLastSystemSpeakingTime = Date.now();
   };
 
   // Zero-latency local Web Speech synthesis for instant UI navigation cues (0-10ms delay, no network lag)
@@ -411,6 +413,8 @@ export const AccessibilityProvider: React.FC<{ children: ReactNode }> = ({ child
       utterance.onstart = () => {
         // Dispatch custom event to notify VoiceNavigator without re-rendering the whole React tree
         if (typeof window !== 'undefined') {
+          (window as any).__ablefySystemSpeaking = true;
+          (window as any).__ablefyLastSystemSpeakingTime = Date.now();
           window.dispatchEvent(new CustomEvent('ablefy-system-speaking', { detail: { speaking: true, text } }));
         }
       };
@@ -423,7 +427,11 @@ export const AccessibilityProvider: React.FC<{ children: ReactNode }> = ({ child
           (window as any).__ablefyActiveUtterance = null;
         }
         if (typeof window !== 'undefined') {
-          window.dispatchEvent(new CustomEvent('ablefy-system-speaking', { detail: { speaking: false, text } }));
+          (window as any).__ablefyLastSystemSpeakingTime = Date.now();
+          setTimeout(() => {
+            (window as any).__ablefySystemSpeaking = false;
+            window.dispatchEvent(new CustomEvent('ablefy-system-speaking', { detail: { speaking: false, text } }));
+          }, 1000);
         }
       };
 
@@ -449,6 +457,12 @@ export const AccessibilityProvider: React.FC<{ children: ReactNode }> = ({ child
     if (!force && !voiceCuesRef.current) return;
     const cleanText = text.trim();
     if (!cleanText) return;
+
+    // Mutual exclusion: If VoiceNavigator just triggered a command action, suppress redundant screen reader echoes
+    if (!force && typeof window !== 'undefined' && Date.now() - ((window as any).__ablefyVoiceActionInProgress || 0) < 2200) {
+      return;
+    }
+
     lastSpokenCueTimeRef.current = Date.now();
     lastSpokenCueTextRef.current = cleanText.toLowerCase();
     recordRecentCue(cleanText);

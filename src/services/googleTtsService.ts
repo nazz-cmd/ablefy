@@ -212,28 +212,52 @@ export const playBase64Audio = (
       currentAudioInstance = audio;
 
       audio.onplay = () => {
+        if (typeof window !== 'undefined') {
+          (window as any).__ablefySystemSpeaking = true;
+          (window as any).__ablefyLastSystemSpeakingTime = Date.now();
+          window.dispatchEvent(new CustomEvent('ablefy-system-speaking', { detail: { speaking: true } }));
+        }
         options?.onStart?.();
       };
 
       audio.onended = () => {
         currentAudioInstance = null;
+        if (typeof window !== 'undefined') {
+          (window as any).__ablefyLastSystemSpeakingTime = Date.now();
+          setTimeout(() => {
+            (window as any).__ablefySystemSpeaking = false;
+            window.dispatchEvent(new CustomEvent('ablefy-system-speaking', { detail: { speaking: false } }));
+          }, 1000);
+        }
         options?.onEnd?.();
         resolve(audio);
       };
 
       audio.onerror = (e) => {
         currentAudioInstance = null;
+        if (typeof window !== 'undefined') {
+          (window as any).__ablefySystemSpeaking = false;
+          window.dispatchEvent(new CustomEvent('ablefy-system-speaking', { detail: { speaking: false } }));
+        }
         options?.onError?.(e);
         reject(e);
       };
 
       audio.play().catch((err) => {
         currentAudioInstance = null;
+        if (typeof window !== 'undefined') {
+          (window as any).__ablefySystemSpeaking = false;
+          window.dispatchEvent(new CustomEvent('ablefy-system-speaking', { detail: { speaking: false } }));
+        }
         options?.onError?.(err);
         reject(err);
       });
     } catch (err) {
       currentAudioInstance = null;
+      if (typeof window !== 'undefined') {
+        (window as any).__ablefySystemSpeaking = false;
+        window.dispatchEvent(new CustomEvent('ablefy-system-speaking', { detail: { speaking: false } }));
+      }
       options?.onError?.(err);
       reject(err);
     }

@@ -123,6 +123,11 @@ export const VoiceNavigator: React.FC<VoiceNavigatorProps> = ({ onNavigateTab, i
 
   const dispatchAction = (action: string, payload?: any, label?: string) => {
     lastCommandTimeRef.current = Date.now();
+    if (typeof window !== 'undefined') {
+      (window as any).__ablefyVoiceActionInProgress = Date.now();
+      (window as any).__ablefySystemSpeaking = true;
+      (window as any).__ablefyLastSystemSpeakingTime = Date.now();
+    }
     if (label) {
       setSuccessMessage(label);
       lastSpokenResponseRef.current = label;
@@ -222,28 +227,47 @@ export const VoiceNavigator: React.FC<VoiceNavigatorProps> = ({ onNavigateTab, i
 
     // 1. Two-way echo suppression: filter audio feedback from Panduan Suara & system TTS
     const now = Date.now();
-    const isBrowserSpeaking = typeof window !== 'undefined' && Boolean(window.speechSynthesis && window.speechSynthesis.speaking);
-    const isCurrentlySpeaking = isSpeaking || isSystemSpeakingRef.current || isBrowserSpeaking || (now - lastSpokenResponseTimeRef.current < 1200) || (now - lastSystemSpeakingEndTimeRef.current < 400);
+    const isAudioPlaying = 
+      typeof window !== 'undefined' && 
+      (Boolean((window as any).__ablefySystemSpeaking) || 
+       (now - ((window as any).__ablefyLastSystemSpeakingTime || 0) < 1200));
 
-    // Check against recent screen reader cues (exact phrase echo within 1.5s)
-    const recentCues: Array<{ text: string; time: number }> = (typeof window !== 'undefined' && (window as any).__ablefyRecentCues) || [];
-    const isMatchingRecentCue = recentCues.some(c => 
-      now - c.time < 1500 && (
-        phraseLower === c.text || 
-        (phraseLower.length > 7 && c.text.includes(phraseLower)) ||
-        (c.text.length > 7 && phraseLower.includes(c.text))
-      )
-    );
+    const isBrowserSpeaking = 
+      typeof window !== 'undefined' && 
+      Boolean(window.speechSynthesis && window.speechSynthesis.speaking);
 
-    if (isCurrentlySpeaking && lastSpokenResponseRef.current) {
-      const spokenLower = lastSpokenResponseRef.current.toLowerCase();
-      if (phraseLower === spokenLower || (phraseLower.length > 5 && spokenLower.includes(phraseLower))) {
-        return false;
-      }
-    }
+    const isCurrentlySpeaking = 
+      isSpeaking || 
+      isSystemSpeakingRef.current || 
+      isAudioPlaying || 
+      isBrowserSpeaking || 
+      (now - lastSpokenResponseTimeRef.current < 2500) || 
+      (now - lastSystemSpeakingEndTimeRef.current < 1000);
 
-    if (isCurrentlySpeaking || isMatchingRecentCue) {
-      // Audio originated from Panduan Suara or system voice, ignore so features don't collide
+    // Check against recent screen reader cues (exact phrase or tokenized keyword echo within 4.5s)
+    const recentCues: Array<{ text: string; tokens?: string[]; time: number }> = 
+      (typeof window !== 'undefined' && (window as any).__ablefyRecentCues) || [];
+    
+    const cleanMicWords = phraseLower.replace(/[^\w\s]/g, '').split(/\s+/).filter(w => w.length > 2);
+
+    const isMatchingRecentCue = recentCues.some(c => {
+      if (now - c.time > 4500) return false;
+      const cueTokens = c.tokens || c.text.toLowerCase().replace(/[^\w\s]/g, '').split(/\s+/).filter(w => w.length > 2);
+      const commonWords = cleanMicWords.filter(w => cueTokens.includes(w));
+      return commonWords.length > 0 && (
+        commonWords.some(w => ['beranda', 'pembaca', 'transkrip', 'transkripsi', 'isyarat', 'bisindo', 'panduan', 'suara', 'kontras', 'disleksia', 'tremor', 'dokumen'].includes(w)) ||
+        commonWords.length >= Math.min(cleanMicWords.length, cueTokens.length) * 0.5
+      );
+    });
+
+    const isMatchingLastSpokenResponse = 
+      Boolean(lastSpokenResponseRef.current) && 
+      (now - lastSpokenResponseTimeRef.current < 3500) && (
+        phraseLower === lastSpokenResponseRef.current.toLowerCase() ||
+        cleanMicWords.some(w => ['beranda', 'pembaca', 'transkrip', 'transkripsi', 'isyarat', 'bisindo', 'panduan', 'suara'].includes(w) && lastSpokenResponseRef.current.toLowerCase().includes(w))
+      );
+
+    if (isCurrentlySpeaking || isMatchingRecentCue || isMatchingLastSpokenResponse) {
       return false;
     }
 
@@ -383,20 +407,46 @@ export const VoiceNavigator: React.FC<VoiceNavigatorProps> = ({ onNavigateTab, i
 
           // Check if device is actively speaking (Panduan Suara, screen reader cue, or TTS)
           const now = Date.now();
-          const isBrowserSpeaking = typeof window !== 'undefined' && Boolean(window.speechSynthesis && window.speechSynthesis.speaking);
-          const isDeviceSpeaking = isSpeaking || isSystemSpeakingRef.current || isBrowserSpeaking || (now - lastSystemSpeakingEndTimeRef.current < 400) || (now - lastSpokenResponseTimeRef.current < 1200);
+          const isAudioPlaying = 
+            typeof window !== 'undefined' && 
+            (Boolean((window as any).__ablefySystemSpeaking) || 
+             (now - ((window as any).__ablefyLastSystemSpeakingTime || 0) < 1200));
+
+          const isBrowserSpeaking = 
+            typeof window !== 'undefined' && 
+            Boolean(window.speechSynthesis && window.speechSynthesis.speaking);
+
+          const isDeviceSpeaking = 
+            isSpeaking || 
+            isSystemSpeakingRef.current || 
+            isAudioPlaying || 
+            isBrowserSpeaking || 
+            (now - lastSystemSpeakingEndTimeRef.current < 1000) || 
+            (now - lastSpokenResponseTimeRef.current < 2500);
 
           const currentLower = currentSpeech.toLowerCase();
-          const recentCues: Array<{ text: string; time: number }> = (typeof window !== 'undefined' && (window as any).__ablefyRecentCues) || [];
-          const isMatchingRecentCue = recentCues.some(c => 
-            now - c.time < 1500 && (
-              currentLower === c.text || 
-              (currentLower.length > 7 && c.text.includes(currentLower)) ||
-              (c.text.length > 7 && currentLower.includes(c.text))
-            )
-          );
+          const cleanMicWords = currentLower.replace(/[^\w\s]/g, '').split(/\s+/).filter(w => w.length > 2);
+          const recentCues: Array<{ text: string; tokens?: string[]; time: number }> = 
+            (typeof window !== 'undefined' && (window as any).__ablefyRecentCues) || [];
 
-          if (isDeviceSpeaking || isMatchingRecentCue) {
+          const isMatchingRecentCue = recentCues.some(c => {
+            if (now - c.time > 4500) return false;
+            const cueTokens = c.tokens || c.text.toLowerCase().replace(/[^\w\s]/g, '').split(/\s+/).filter(w => w.length > 2);
+            const commonWords = cleanMicWords.filter(w => cueTokens.includes(w));
+            return commonWords.length > 0 && (
+              commonWords.some(w => ['beranda', 'pembaca', 'transkrip', 'transkripsi', 'isyarat', 'bisindo', 'panduan', 'suara', 'kontras', 'disleksia', 'tremor', 'dokumen'].includes(w)) ||
+              commonWords.length >= Math.min(cleanMicWords.length, cueTokens.length) * 0.5
+            );
+          });
+
+          const isMatchingLastSpokenResponse = 
+            Boolean(lastSpokenResponseRef.current) && 
+            (now - lastSpokenResponseTimeRef.current < 3500) && (
+              currentLower === lastSpokenResponseRef.current.toLowerCase() ||
+              cleanMicWords.some(w => ['beranda', 'pembaca', 'transkrip', 'transkripsi', 'isyarat', 'bisindo', 'panduan', 'suara'].includes(w) && lastSpokenResponseRef.current.toLowerCase().includes(w))
+            );
+
+          if (isDeviceSpeaking || isMatchingRecentCue || isMatchingLastSpokenResponse) {
             return;
           }
 
